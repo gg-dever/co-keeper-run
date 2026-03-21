@@ -678,6 +678,7 @@ class QuickBooksPipeline:
             'vendor_intelligence': self.vendor_intelligence,
             'rule_classifier': self.rule_classifier,
             'validator': self.validator,
+            'confidence_calibrator': self.confidence_calibrator,
             'tfidf_cols': self.tfidf_cols,
             'tfidf_char_cols': self.tfidf_char_cols,
             'tfidf_trigram_cols': self.tfidf_trigram_cols,
@@ -721,6 +722,7 @@ class QuickBooksPipeline:
         pipeline.vendor_intelligence = model_data['vendor_intelligence']
         pipeline.rule_classifier = model_data['rule_classifier']
         pipeline.validator = model_data['validator']
+        pipeline.confidence_calibrator = model_data.get('confidence_calibrator', None)
         pipeline.tfidf_cols = model_data['tfidf_cols']
         pipeline.tfidf_char_cols = model_data['tfidf_char_cols']
         pipeline.tfidf_trigram_cols = model_data['tfidf_trigram_cols']
