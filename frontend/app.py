@@ -22,7 +22,7 @@ import requests
 
 sys.path.insert(0, os.path.abspath('.'))
 
-BACKEND_URL = os.getenv("BACKEND_URL", "https://cokeeper-backend-252240360177.us-central1.run.app")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://cokeeper-backend-497003729794.us-central1.run.app")
 
 import warnings
 warnings.filterwarnings('ignore')
