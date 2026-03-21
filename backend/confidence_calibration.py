@@ -153,9 +153,9 @@ class ConfidenceCalibrator:
         # Factor 1: Category accuracy
         category_acc = self.category_accuracy.get(predicted_category_idx, None)
         if category_acc is not None:
-            # Penalize based on category performance - more severe penalty
-            # Scale: 0% acc = 0.5x penalty, 100% acc = 1.0x (no penalty)
-            accuracy_factor = 0.5 + (0.5 * category_acc)  # Range: 0.5 to 1.0
+            # Penalize based on category performance - more severe penalty (30% stronger)
+            # Scale: 0% acc = 0.5x penalty, 100% acc = 0.85x
+            accuracy_factor = 0.5 + (0.35 * category_acc)  # Range: 0.5 to 0.85
             calibrated = calibrated * accuracy_factor
             if category_acc < 0.7:
                 reasons.append(f"cat_acc={category_acc:.2f}")
