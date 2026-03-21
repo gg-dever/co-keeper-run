@@ -434,6 +434,25 @@ class QuickBooksPipeline:
         test_accuracy = accuracy_score(test_labels, test_pred) * 100
         self.test_accuracy = test_accuracy / 100  # Store as 0-1 scale internally
 
+        # Initialize confidence calibrator and fit on validation data
+        from confidence_calibration import ConfidenceCalibrator
+        self.confidence_calibrator = ConfidenceCalibrator()
+        
+        # Get validation probabilities for calibration
+        val_proba = self.model.predict_proba(val_final)
+        
+        # Convert string labels to indices for the calibrator
+        unique_categories = np.array(sorted(set(val_labels)))
+        val_labels_idx = np.array([np.where(unique_categories == label)[0][0] for label in val_labels])
+        val_pred_idx = np.array([np.where(unique_categories == label)[0][0] for label in val_pred])
+        
+        # Fit calibrator on validation data
+        self.confidence_calibrator.fit(val_pred_idx, val_labels_idx, val_proba)
+        
+        # Learn vendor history from training data
+        if 'vendor_name' in train.columns and 'category_true' in train.columns:
+            self.confidence_calibrator.fit_vendor_history(train, 'vendor_name', 'category_true')
+
         # Initialize validator
         self.validator = PostPredictionValidator()
 
@@ -533,7 +552,7 @@ class QuickBooksPipeline:
         ml_probabilities = self.model.predict_proba(final_features)
         ml_confidence = ml_probabilities.max(axis=1)
 
-        # Hybrid: Use rule predictions if high confidence, otherwise ML
+        # Hybrid: Use rule predictions if high confidence, otherwise ML + apply calibration
         final_predictions = []
         final_confidence = []
         prediction_source = []
@@ -541,11 +560,38 @@ class QuickBooksPipeline:
         for idx in range(len(df)):
             if rule_matches.iloc[idx] and rule_high_conf.iloc[idx]:
                 final_predictions.append(rules.iloc[idx]['rule_prediction'])
+                # Use raw rule confidence (no calibration needed for rules)
                 final_confidence.append(rules.iloc[idx]['rule_confidence'])
                 prediction_source.append('rule')
             else:
-                final_predictions.append(ml_predictions[idx])
-                final_confidence.append(ml_confidence[idx])
+                pred = ml_predictions[idx]
+                final_predictions.append(pred)
+                
+                # Apply calibration to ML predictions
+                pred_prob = ml_probabilities[idx]
+                
+                # Get predicted category index for calibrator
+                try:
+                    pred_idx = int(np.where(self.model.classes_ == pred)[0][0]) if hasattr(self.model, 'classes_') else idx
+                except:
+                    pred_idx = 0
+                
+                # Extract vendor intelligence info for calibration boosts
+                vi_conf = float(vi_features.iloc[idx]['vi_confidence']) if idx < len(vi_features) else 0.0
+                vi_match = int(vi_features.iloc[idx]['has_match']) if idx < len(vi_features) else 0
+                vendor_name = df.iloc[idx].get('vendor_name', '')
+                
+                # Calibrate confidence using the calibrator
+                if hasattr(self, 'confidence_calibrator') and self.confidence_calibrator:
+                    calibrated_conf, _ = self.confidence_calibrator.calibrate(
+                        pred_prob, pred_idx, vi_conf, bool(vi_match),
+                        vendor_name=vendor_name, predicted_category=pred
+                    )
+                    final_confidence.append(calibrated_conf)
+                else:
+                    # Fallback to raw confidence if calibrator not available
+                    final_confidence.append(float(ml_confidence[idx]))
+                
                 prediction_source.append('ml')
 
         # Add predictions to DataFrame (use FRONTBACK.md column names)
