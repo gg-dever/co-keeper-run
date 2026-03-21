@@ -550,6 +550,7 @@ class QuickBooksPipeline:
 
         # Add predictions to DataFrame (use FRONTBACK.md column names)
         df['Transaction Type (New)'] = final_predictions
+        df['Account Code (New)'] = df['account_code']  # Include parsed account code like Xero does
         df['Confidence Score'] = final_confidence
         df['Confidence Tier'] = pd.cut(
             final_confidence,

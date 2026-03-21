@@ -1136,7 +1136,7 @@ elif page == "results":
         st.markdown('<div class="section-label">Prediction Sample (first 50 rows)</div>', unsafe_allow_html=True)
 
         if 'Transaction Type (New)' in results.columns:
-            display_cols = ['Date', 'Name', 'Memo/Description', 'Transaction Type (New)', 'Confidence Score', 'Confidence Tier']
+            display_cols = ['Date', 'Name', 'Memo/Description', 'Transaction Type (New)', 'Account Code (New)', 'Confidence Score', 'Confidence Tier']
         else:
             display_cols = ['Date', 'Contact', 'Description', 'Related account (New)', 'Account Code (New)', 'Confidence Score', 'Confidence Tier']
 
@@ -1204,7 +1204,7 @@ elif page == "review":
 
         # ── Display table ──
         if 'Transaction Type (New)' in tier_data.columns:
-            display_cols = ['Date', 'Name', 'Memo/Description', 'Transaction Type (New)', 'Confidence Score', 'Confidence Tier']
+            display_cols = ['Date', 'Name', 'Memo/Description', 'Transaction Type (New)', 'Account Code (New)', 'Confidence Score', 'Confidence Tier']
         else:
             display_cols = ['Date', 'Contact', 'Description', 'Related account (New)', 'Account Code (New)', 'Confidence Score', 'Confidence Tier']
 
