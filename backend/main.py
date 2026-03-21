@@ -13,22 +13,38 @@ from typing import Dict, Any, Optional
 import logging
 import traceback
 
-# Try to import ML pipelines, but don't fail if they're not available
-try:
-    from ml_pipeline_qb import QuickBooksPipeline as MLPipeline
-    ML_QB_AVAILABLE = True
-except Exception as e:
-    logging.warning(f"QuickBooks ML Pipeline not available: {e}")
-    MLPipeline = None
-    ML_QB_AVAILABLE = False
+# LAZY LOAD ML pipelines on first use (not on import)
+# This prevents slow imports from blocking the FastAPI app startup
+MLPipeline = None
+MLPipelineXero = None
+ML_QB_AVAILABLE = True  # Will set to False if import fails
+ML_XERO_AVAILABLE = True  # Will set to False if import fails
 
-try:
-    from ml_pipeline_xero import MLPipelineXero
-    ML_XERO_AVAILABLE = True
-except Exception as e:
-    logging.warning(f"Xero ML Pipeline not available: {e}")
-    MLPipelineXero = None
-    ML_XERO_AVAILABLE = False
+def _lazy_load_qb():
+    """Lazy load QB pipeline on first use"""
+    global MLPipeline, ML_QB_AVAILABLE
+    if MLPipeline is None:
+        try:
+            from ml_pipeline_qb import QuickBooksPipeline
+            MLPipeline = QuickBooksPipeline
+        except Exception as e:
+            logger.warning(f"QuickBooks ML Pipeline not available: {e}")
+            ML_QB_AVAILABLE = False
+            raise
+    return MLPipeline
+
+def _lazy_load_xero():
+    """Lazy load Xero pipeline on first use"""
+    global MLPipelineXero, ML_XERO_AVAILABLE
+    if MLPipelineXero is None:
+        try:
+            from ml_pipeline_xero import MLPipelineXero as XeroPipe
+            MLPipelineXero = XeroPipe
+        except Exception as e:
+            logger.warning(f"Xero ML Pipeline not available: {e}")
+            ML_XERO_AVAILABLE = False
+            raise
+    return MLPipelineXero
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -60,8 +76,9 @@ def get_qb_pipeline():
     global ml_pipeline
     if not ML_QB_AVAILABLE:
         raise HTTPException(status_code=503, detail="QuickBooks ML pipeline is not available")
+    Pipeline = _lazy_load_qb()  # Load the class on first call
     if ml_pipeline is None:
-        ml_pipeline = MLPipeline()
+        ml_pipeline = Pipeline()
     return ml_pipeline
 
 
@@ -70,8 +87,9 @@ def get_xero_pipeline():
     global ml_pipeline_xero
     if not ML_XERO_AVAILABLE:
         raise HTTPException(status_code=503, detail="Xero ML pipeline is not available")
+    Pipeline = _lazy_load_xero()  # Load the class on first call
     if ml_pipeline_xero is None:
-        ml_pipeline_xero = MLPipelineXero()
+        ml_pipeline_xero = Pipeline()
     return ml_pipeline_xero
 
 
@@ -149,7 +167,7 @@ async def predict_transactions(file: UploadFile = File(...)) -> Dict[str, Any]:
 
         # Get the pipeline
         pipeline = get_qb_pipeline()
-        
+
         # Try to load model from disk if not already loaded (important for Cloud Run persistence)
         default_model_path = "models/naive_bayes_model.pkl"
         if not pipeline.is_model_loaded():
@@ -257,7 +275,7 @@ async def predict_xero_transactions(file: UploadFile = File(...)) -> Dict[str, A
 
         # Get the pipeline
         pipeline = get_xero_pipeline()
-        
+
         # Try to load model from disk if not already loaded (important for Cloud Run persistence)
         default_model_path = "models/xero_model.pkl"
         if not pipeline.is_model_loaded():
@@ -304,15 +322,20 @@ async def predict_xero_transactions(file: UploadFile = File(...)) -> Dict[str, A
 @app.get("/health")
 async def health_check():
     """Detailed health check for deployment monitoring"""
+    qb_loaded = False
+    xero_loaded = False
+    
     try:
-        qb_loaded = get_qb_pipeline().is_model_loaded() if (ML_QB_AVAILABLE and ml_pipeline) else False
+        if ML_QB_AVAILABLE and ml_pipeline:
+            qb_loaded = ml_pipeline.is_model_loaded()
     except Exception:
-        qb_loaded = False
+        pass
 
     try:
-        xero_loaded = get_xero_pipeline().is_model_loaded() if (ML_XERO_AVAILABLE and ml_pipeline_xero) else False
+        if ML_XERO_AVAILABLE and ml_pipeline_xero:
+            xero_loaded = ml_pipeline_xero.is_model_loaded()
     except Exception:
-        xero_loaded = False
+        pass
 
     return {
         "status": "healthy",
