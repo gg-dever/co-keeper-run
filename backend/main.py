@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import pandas as pd
 import io
+import os
 from typing import Dict, Any, Optional
 import logging
 import traceback
@@ -146,15 +147,25 @@ async def predict_transactions(file: UploadFile = File(...)) -> Dict[str, Any]:
 
         logger.info(f"Received prediction file: {file.filename} with {len(df)} rows")
 
-        # Check if model is loaded
-        if not get_qb_pipeline().is_model_loaded():
-            raise HTTPException(
-                status_code=400,
-                detail="No trained model loaded. Please train a model first using the /train endpoint."
-            )
+        # Get the pipeline
+        pipeline = get_qb_pipeline()
+        
+        # Try to load model from disk if not already loaded (important for Cloud Run persistence)
+        default_model_path = "models/naive_bayes_model.pkl"
+        if not pipeline.is_model_loaded():
+            if os.path.exists(default_model_path):
+                logger.info(f"Loading trained model from {default_model_path}")
+                pipeline = MLPipeline.load_model(default_model_path)
+                # Update the global pipeline
+                globals()['ml_pipeline'] = pipeline
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No trained model found. Please train a model first using the /train endpoint."
+                )
 
         # Make predictions using the trained model
-        predictions = get_qb_pipeline().predict(df)
+        predictions = pipeline.predict(df)
 
         # Calculate confidence distribution
         high_count = sum(1 for p in predictions if p["Confidence Tier"] == "GREEN")
@@ -244,15 +255,23 @@ async def predict_xero_transactions(file: UploadFile = File(...)) -> Dict[str, A
 
         logger.info(f"Received Xero prediction file: {file.filename} with {len(df)} rows")
 
-        # Check if model is loaded
-        if not get_xero_pipeline().is_model_loaded():
-            raise HTTPException(
-                status_code=400,
-                detail="No trained Xero model loaded. Please train a model first using the /train_xero endpoint."
-            )
+        # Get the pipeline
+        pipeline = get_xero_pipeline()
+        
+        # Try to load model from disk if not already loaded (important for Cloud Run persistence)
+        default_model_path = "models/xero_model.pkl"
+        if not pipeline.is_model_loaded():
+            if os.path.exists(default_model_path):
+                logger.info(f"Loading trained Xero model from {default_model_path}")
+                pipeline.load_model(default_model_path)
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No trained Xero model found. Please train a model first using the /train_xero endpoint."
+                )
 
         # Make predictions using the trained model
-        predictions = get_xero_pipeline().predict(df)
+        predictions = pipeline.predict(df)
 
         # Calculate confidence distribution
         high_count = sum(1 for p in predictions if p["Confidence Tier"] == "GREEN")
