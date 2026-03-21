@@ -474,10 +474,10 @@ class PostPredictionValidator:
         result_df['Validation Flags'] = all_flags
         result_df['Confidence Delta'] = result_df['Validated Confidence'] - result_df[confidence_col]
 
-        # Recalculate tiers based on validated confidence
+        # Recalculate tiers based on validated confidence (GREEN≥0.70, YELLOW≥0.40, RED<0.40)
         result_df['Validated Tier'] = pd.cut(
             result_df['Validated Confidence'],
-            bins=[0, 0.7, 0.9, 1.01],
+            bins=[0, 0.4, 0.7, 1.01],
             labels=['RED', 'YELLOW', 'GREEN']
         )
 

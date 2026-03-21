@@ -554,7 +554,7 @@ class QuickBooksPipeline:
         df['Confidence Score'] = final_confidence
         df['Confidence Tier'] = pd.cut(
             final_confidence,
-            bins=[0, 0.7, 0.9, 1.01],
+            bins=[0, 0.4, 0.7, 1.01],
             labels=['RED', 'YELLOW', 'GREEN']
         )
         df['Prediction Source'] = prediction_source
