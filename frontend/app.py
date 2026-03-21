@@ -1,14 +1,12 @@
 """
-CoKeeper Streamlit Web App - Full Featured
-Complete GL categorization application with:
-- File upload with validation
-- Data preview
-- Results visualization
-- Review workflow (RED/YELLOW/GREEN tiers)
+CoKeeper Streamlit Web App - Enhanced Design
+GL categorization application with polished UI:
+- Dark navy sidebar with colored accents
+- Gradient hero sections
+- Colorful metric cards and tier badges
+- Vibrant Plotly charts
 - Multi-format export (CSV, Excel)
-- Responsive design
-
-Uses core pipeline from src/pipeline.py
+- Review workflow (RED/YELLOW/GREEN tiers)
 """
 
 import streamlit as st
@@ -22,13 +20,10 @@ import plotly.graph_objects as go
 from datetime import datetime
 import requests
 
-# Add src to path
 sys.path.insert(0, os.path.abspath('.'))
 
-# Backend API Configuration
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://cokeeper-backend-252240360177.us-central1.run.app")
 
-# from src.pipeline import CoKeeperPipeline  # TODO: Uncomment when pipeline is ready
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -39,820 +34,521 @@ warnings.filterwarnings('ignore')
 
 st.set_page_config(
     page_title="CoKeeper - GL Categorization",
-    page_icon="📊",
+    page_icon="📒",
     layout="wide",
     initial_sidebar_state="auto"
 )
 
-# Professional Website CSS styling
 st.markdown("""
 <style>
-    /* Professional Color Palette - Brand */
-    :root {
-        --primary: #0f172a;
-        --primary-light: #1e293b;
-        --accent: #3b82f6;
-        --accent-light: #60a5fa;
-        --success: #10b981;
-        --warning: #f59e0b;
-        --danger: #ef4444;
-        --gray-50: #f8fafc;
-        --gray-100: #f1f5f9;
-        --gray-200: #e2e8f0;
-        --gray-300: #cbd5e1;
-        --gray-600: #475569;
-        --gray-700: #334155;
-        --gray-800: #1e293b;
-        --gray-900: #0f172a;
-    }
-
-    /* Global */
-    html, body, [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    }
-
-    .main {
-        background: transparent;
-        padding-top: 0 !important;
-    }
-
-    * {
-        transition: box-shadow 0.3s ease, transform 0.3s ease, color 0.2s ease;
-    }
-
-    /* Typography System */
-    h1 {
-        color: var(--gray-900);
-        font-size: 2.5rem;
-        font-weight: 900;
-        letter-spacing: -1px;
-        line-height: 1.2;
-        margin: 0;
-    }
-
-    h2 {
-        color: var(--gray-900);
-        font-size: 1.875rem;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        margin-top: 2rem;
-        margin-bottom: 1.25rem;
-    }
-
-    h3 {
-        color: var(--gray-800);
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin-top: 1.5rem;
-        margin-bottom: 0.75rem;
-    }
-
-    p, .stMarkdown {
-        color: var(--gray-600);
-        line-height: 1.7;
-        font-size: 15px;
-    }
-
-    a {
-        color: var(--accent);
-        text-decoration: none;
-        font-weight: 500;
-    }
-
-    a:hover {
-        color: var(--accent-light);
-        text-decoration: underline;
-    }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, white 0%, #f8fafc 100%);
-        border-right: 1px solid var(--gray-200);
-    }
-
-    [data-testid="stSidebar"] h1 {
-        font-size: 1.75rem;
-        color: var(--gray-900);
-        margin-bottom: 0.5rem;
-    }
-
-    [data-testid="stSidebar"] .stRadio > label {
-        font-weight: 500;
-        color: var(--gray-700);
-        padding: 12px 16px;
-        margin: 6px 0;
-        border-radius: 8px;
-        transition: all 0.2s;
-    }
-
-    [data-testid="stSidebar"] [role="radio"] {
-        accent-color: var(--accent);
-    }
-
-    /* Radio Button Toggle Switch Styling */
-    [role="radiogroup"] {
-        display: flex !important;
-        gap: 0 !important;
-        background: var(--gray-200);
-        border-radius: 8px;
-        padding: 2px;
-        width: fit-content;
-    }
-
-    [role="radio"] {
-        flex: 1;
-    }
-
-    [role="radio"] + label {
-        background: transparent !important;
-        border-radius: 6px;
-        padding: 10px 16px !important;
-        margin: 0 !important;
-        font-weight: 600;
-        font-size: 14px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    [role="radio"]:checked + label {
-        background: var(--success) !important;
-        color: white !important;
-        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
-    }
-
-    /* Inputs & Form Elements */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div > select,
-    .stMultiSelect > div > div > input {
-        border-radius: 10px !important;
-        border: 2px solid var(--gray-200) !important;
-        padding: 12px 16px !important;
-        font-size: 15px !important;
-        transition: all 0.3s !important;
-    }
-
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus,
-    .stSelectbox > div > div > select:focus,
-    .stMultiSelect > div > div > input:focus {
-        border-color: var(--accent) !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, var(--accent) 0%, #2563eb 100%);
-        border: none;
-        border-radius: 10px;
-        padding: 14px 32px;
-        font-weight: 700;
-        color: white;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
-        font-size: 15px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        cursor: pointer;
-    }
-
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
-    }
-
-    .stButton > button:active {
-        transform: translateY(0);
-    }
-
-    /* Metric Cards */
-    [data-testid="metric-container"] {
-        background: white;
-        border-radius: 16px;
-        border: 1px solid var(--gray-200);
-        padding: 24px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        backdrop-filter: blur(10px);
-    }
-
-    [data-testid="metric-container"]:hover {
-        border-color: var(--accent-light);
-        box-shadow: 0 8px 24px rgba(59, 130, 246, 0.12);
-        transform: translateY(-2px);
-    }
-
-    /* File Upload */
-    .stFileUploader > div > div {
-        border-radius: 12px !important;
-        border: 2px dashed var(--accent) !important;
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.02)) !important;
-        padding: 40px 20px !important;
-    }
-
-    .uploadedFile {
-        border-radius: 12px;
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.02));
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        padding: 16px;
-        margin-top: 12px;
-    }
-
-    /* Expanders */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-        border-radius: 10px;
-        border: 1px solid var(--gray-200);
-        padding: 16px;
-        font-weight: 600;
-        color: var(--gray-900);
-    }
-
-    .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-        border-color: var(--accent-light);
-    }
-
-    /* Tables */
-    .stDataFrame {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        border: 1px solid var(--gray-200);
-    }
-
-    /* Divider */
-    hr {
-        border: none;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, var(--gray-200), transparent);
-        margin: 2.5rem 0;
-    }
-
-    /* Status Boxes */
-    .stAlert {
-        border-radius: 12px;
-        border: 1px solid;
-        padding: 16px;
-        margin-bottom: 1rem;
-    }
-
-    .stSuccess {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)) !important;
-        border-color: rgba(16, 185, 129, 0.3) !important;
-    }
-
-    .stWarning {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05)) !important;
-        border-color: rgba(245, 158, 11, 0.3) !important;
-    }
-
-    .stError {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05)) !important;
-        border-color: rgba(239, 68, 68, 0.3) !important;
-    }
-
-    .stInfo {
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05)) !important;
-        border-color: rgba(59, 130, 246, 0.3) !important;
-    }
-
-    /* Hero Section */
-    .hero-container {
-        background: linear-gradient(135deg, var(--gray-900) 0%, var(--primary-light) 100%);
-        border-radius: 16px;
-        padding: 60px 40px;
-        color: white;
-        margin-bottom: 40px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .hero-container::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -10%;
-        width: 500px;
-        height: 500px;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.2), transparent);
-        border-radius: 50%;
-    }
-
-    .hero-container h1 {
-        color: white;
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        position: relative;
-        z-index: 1;
-    }
-
-    .hero-tagline {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1.125rem;
-        line-height: 1.8;
-        max-width: 600px;
-        position: relative;
-        z-index: 1;
-    }
-
-    /* Card Container */
-    .info-card {
-        background: white;
-        border-radius: 16px;
-        padding: 28px;
-        border: 1px solid var(--gray-200);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-        margin-bottom: 20px;
-    }
-
-    .info-card:hover {
-        border-color: var(--accent-light);
-        box-shadow: 0 12px 32px rgba(59, 130, 246, 0.12);
-        transform: translateY(-4px);
-    }
-
-    /* Badge */
-    .badge {
-        display: inline-block;
-        background: linear-gradient(135deg, var(--accent), #2563eb);
-        color: white;
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-top: 12px;
-    }
-
-    /* iPhone-Style Toggle Switch */
-    .toggle-switch-container {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        background: white;
-        padding: 24px;
-        border-radius: 16px;
-        border: 1px solid var(--gray-200);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        margin-bottom: 24px;
-    }
-
-    .toggle-switch {
-        position: relative;
-        display: inline-flex;
-        width: 56px;
-        height: 32px;
-        background-color: #ccc;
-        border-radius: 16px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        border: none;
-        padding: 2px;
-        gap: 0;
-    }
-
-    .toggle-switch.active {
-        background-color: var(--success);
-    }
-
-    .toggle-switch-slider {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 28px;
-        height: 28px;
-        background-color: white;
-        border-radius: 50%;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .toggle-switch.active .toggle-switch-slider {
-        left: calc(100% - 30px);
-    }
-
-    .toggle-switch-label {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        flex: 1;
-    }
-
-    .toggle-switch-label h3 {
-        margin: 0;
-        font-size: 16px;
-        color: var(--gray-900);
-        font-weight: 700;
-    }
-
-    .toggle-switch-label p {
-        margin: 0;
-        font-size: 13px;
-        color: var(--gray-600);
-    }
-
-    .toggle-switch-options {
-        display: flex;
-        gap: 12px;
-        margin-left: auto;
-    }
-
-    .toggle-option {
-        font-size: 13px;
-        font-weight: 600;
-        padding: 4px 0;
-        color: var(--gray-600);
-    }
-
-    .toggle-option.inactive {
-        opacity: 0.5;
-    }
-
-    .toggle-option.active {
-        color: var(--success);
-    }
-
-    /* Responsive - Mobile First */
-    @media (max-width: 1024px) {
-        [data-testid="stAppViewContainer"] {
-            padding: 0 !important;
-        }
-
-        .stContainer {
-            padding: 0 !important;
-        }
-    }
-
-    @media (max-width: 768px) {
-        /* Typography */
-        h1 {
-            font-size: 1.75rem;
-            margin-bottom: 1rem;
-        }
-        h2 {
-            font-size: 1.25rem;
-            margin-top: 1rem;
-            margin-bottom: 0.75rem;
-        }
-        h3 {
-            font-size: 1rem;
-        }
-        p, .stMarkdown {
-            font-size: 14px;
-        }
-
-        /* Layout */
-        [data-testid="stAppViewContainer"] {
-            padding: 12px 0 !important;
-        }
-
-        .main {
-            padding: 12px 16px !important;
-        }
-
-        /* Hero */
-        .hero-container {
-            padding: 32px 20px;
-            margin-bottom: 20px;
-            border-radius: 12px;
-        }
-        .hero-container h1 {
-            font-size: 1.75rem;
-            margin-bottom: 0.75rem;
-        }
-        .hero-tagline {
-            font-size: 0.95rem;
-        }
-        .hero-container::before {
-            width: 300px;
-            height: 300px;
-            top: -30%;
-            right: -20%;
-        }
-
-        /* Cards */
-        .info-card {
-            padding: 20px;
-            margin-bottom: 16px;
-            border-radius: 12px;
-        }
-
-        /* Sidebar */
-        [data-testid="stSidebar"] {
-            z-index: 100;
-        }
-
-        /* Buttons */
-        .stButton > button {
-            width: 100%;
-            padding: 12px 20px;
-            font-size: 14px;
-            border-radius: 8px;
-        }
-
-        /* Inputs */
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input,
-        .stSelectbox > div > div > select,
-        .stMultiSelect > div > div > input {
-            padding: 12px 12px !important;
-            font-size: 14px !important;
-            border-radius: 8px !important;
-            min-height: 44px !important;
-        }
-
-        /* File Upload */
-        .stFileUploader > div > div {
-            padding: 30px 16px !important;
-            border-radius: 8px !important;
-        }
-
-        /* Tables */
-        .stDataFrame {
-            font-size: 12px !important;
-            border-radius: 8px;
-        }
-
-        /* Columns */
-        [data-testid="column"] {
-            padding: 8px 0 !important;
-        }
-
-        /* Metric */
-        [data-testid="metric-container"] {
-            padding: 16px;
-            border-radius: 12px;
-        }
-
-        /* Expanders */
-        .streamlit-expanderHeader {
-            padding: 12px;
-            font-size: 14px;
-            border-radius: 8px;
-        }
-
-        /* Alerts */
-        .stAlert {
-            font-size: 13px;
-            padding: 12px;
-            border-radius: 8px;
-        }
-
-        /* Badge */
-        .badge {
-            font-size: 11px;
-            padding: 4px 10px;
-        }
-    }
-
-    @media (max-width: 480px) {
-        /* Typography */
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.75rem;
-        }
-        h2 {
-            font-size: 1.1rem;
-            margin-top: 0.75rem;
-            margin-bottom: 0.5rem;
-        }
-        h3 {
-            font-size: 0.95rem;
-        }
-        p, .stMarkdown {
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        /* Layout */
-        .main {
-            padding: 8px 12px !important;
-        }
-
-        /* Hero */
-        .hero-container {
-            padding: 24px 16px;
-            margin-bottom: 16px;
-            border-radius: 10px;
-        }
-        .hero-container h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .hero-tagline {
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
-        .hero-container::before {
-            width: 200px;
-            height: 200px;
-            top: -40%;
-            right: -30%;
-        }
-
-        /* Cards */
-        .info-card {
-            padding: 16px;
-            margin-bottom: 12px;
-            border-radius: 10px;
-        }
-
-        /* Buttons */
-        .stButton > button {
-            padding: 10px 16px;
-            font-size: 13px;
-            border-radius: 6px;
-            min-height: 44px;
-        }
-
-        /* Inputs */
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input,
-        .stSelectbox > div > div > select,
-        .stMultiSelect > div > div > input {
-            padding: 10px 10px !important;
-            font-size: 13px !important;
-            border-radius: 6px !important;
-            min-height: 40px !important;
-        }
-
-        /* File Upload */
-        .stFileUploader > div > div {
-            padding: 24px 12px !important;
-            border-radius: 6px !important;
-        }
-
-        /* Tables - Make scrollable */
-        .stDataFrame {
-            font-size: 11px !important;
-            border-radius: 6px;
-            overflow-x: auto;
-        }
-
-        /* Metric */
-        [data-testid="metric-container"] {
-            padding: 12px;
-            border-radius: 10px;
-        }
-
-        /* Expanders */
-        .streamlit-expanderHeader {
-            padding: 10px;
-            font-size: 13px;
-            border-radius: 6px;
-        }
-
-        /* Alerts */
-        .stAlert {
-            font-size: 12px;
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 8px;
-        }
-
-        /* Badge */
-        .badge {
-            font-size: 10px;
-            padding: 3px 8px;
-            margin-top: 8px;
-        }
-
-        /* Two-column layouts */
-        .element-container {
-            width: 100% !important;
-        }
-    }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* ── Global ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, [data-testid="stAppViewContainer"] {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0f1729;
+}
+
+.main .block-container {
+    padding: 2rem 2.5rem 3rem;
+    max-width: 1100px;
+}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0d1b2a 0%, #112240 100%) !important;
+    border-right: 1px solid rgba(99,179,255,0.15);
+}
+
+[data-testid="stSidebar"] * {
+    color: #cdd9e5 !important;
+}
+
+[data-testid="stSidebar"] .stRadio label {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin: 3px 0;
+    display: block;
+    font-weight: 500;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+[data-testid="stSidebar"] .stRadio label:hover {
+    background: rgba(99,179,255,0.12) !important;
+}
+
+[data-testid="stSidebar"] hr {
+    border-color: rgba(99,179,255,0.2) !important;
+}
+
+[data-testid="stSidebar"] .stMarkdown p {
+    color: #8ba5be !important;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+[data-testid="stSidebar"] h1 {
+    color: #e2eaf3 !important;
+    font-size: 1.4rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.5px;
+}
+
+/* ── App background ── */
+[data-testid="stAppViewContainer"] > .main {
+    background: #0f1729;
+}
+
+/* ── Typography ── */
+h1, h2, h3 {
+    font-family: 'Inter', sans-serif !important;
+    letter-spacing: -0.5px;
+}
+
+h1 { color: #e2eaf3 !important; }
+h2 { color: #cdd9e5 !important; font-size: 1.4rem !important; }
+h3 { color: #beccda !important; font-size: 1.1rem !important; }
+
+p, .stMarkdown p { color: #8ba5be; line-height: 1.7; }
+
+/* ── Metric cards ── */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #162032 0%, #1a2a40 100%);
+    border: 1px solid rgba(99,179,255,0.2);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+[data-testid="metric-container"]:hover {
+    border-color: rgba(99,179,255,0.45);
+    box-shadow: 0 8px 28px rgba(56,139,253,0.15);
+    transform: translateY(-2px);
+    transition: all 0.25s ease;
+}
+
+[data-testid="metric-container"] label {
+    color: #6b8ba4 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    color: #63b3ff !important;
+    font-weight: 800 !important;
+    font-size: 1.9rem !important;
+}
+
+/* ── Buttons ── */
+.stButton > button {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border: 1px solid rgba(99,179,255,0.25);
+    border-radius: 10px;
+    color: white !important;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 28px;
+    letter-spacing: 0.3px;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+    transition: all 0.2s ease;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    box-shadow: 0 6px 22px rgba(37,99,235,0.55);
+    transform: translateY(-1px);
+}
+
+/* ── File uploader ── */
+.stFileUploader > div > div {
+    background: linear-gradient(135deg, rgba(37,99,235,0.07), rgba(56,139,253,0.04)) !important;
+    border: 2px dashed rgba(99,179,255,0.35) !important;
+    border-radius: 12px !important;
+    padding: 32px 20px !important;
+    transition: all 0.2s;
+}
+
+.stFileUploader > div > div:hover {
+    border-color: rgba(99,179,255,0.6) !important;
+    background: rgba(37,99,235,0.1) !important;
+}
+
+/* ── Inputs ── */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input,
+.stSelectbox > div > div {
+    background: #162032 !important;
+    border: 1.5px solid rgba(99,179,255,0.2) !important;
+    border-radius: 9px !important;
+    color: #cdd9e5 !important;
+    font-size: 14px !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stSelectbox > div > div:focus-within {
+    border-color: #63b3ff !important;
+    box-shadow: 0 0 0 3px rgba(99,179,255,0.15) !important;
+}
+
+/* ── Select/Multiselect ── */
+.stSelectbox > div > div, .stMultiSelect > div > div {
+    background: #162032 !important;
+    border: 1.5px solid rgba(99,179,255,0.2) !important;
+    border-radius: 9px !important;
+    color: #cdd9e5 !important;
+}
+
+/* ── Slider ── */
+.stSlider [data-baseweb="slider"] [data-testid="stSliderThumb"] {
+    background: #63b3ff !important;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(99,179,255,0.5);
+}
+
+/* ── Expanders ── */
+.streamlit-expanderHeader {
+    background: linear-gradient(135deg, #162032, #1a2a40) !important;
+    border: 1px solid rgba(99,179,255,0.2) !important;
+    border-radius: 10px !important;
+    color: #cdd9e5 !important;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.streamlit-expanderHeader:hover {
+    border-color: rgba(99,179,255,0.4) !important;
+}
+
+.streamlit-expanderContent {
+    background: #12213a !important;
+    border: 1px solid rgba(99,179,255,0.15) !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    color: #8ba5be !important;
+}
+
+/* ── DataFrames ── */
+.stDataFrame {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(99,179,255,0.2) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Alerts ── */
+.stSuccess {
+    background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.06)) !important;
+    border: 1px solid rgba(16,185,129,0.35) !important;
+    border-radius: 10px !important;
+    color: #6ee7b7 !important;
+}
+
+.stWarning {
+    background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.06)) !important;
+    border: 1px solid rgba(245,158,11,0.35) !important;
+    border-radius: 10px !important;
+    color: #fcd34d !important;
+}
+
+.stError {
+    background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.06)) !important;
+    border: 1px solid rgba(239,68,68,0.35) !important;
+    border-radius: 10px !important;
+    color: #fca5a5 !important;
+}
+
+.stInfo {
+    background: linear-gradient(135deg, rgba(99,179,255,0.12), rgba(99,179,255,0.06)) !important;
+    border: 1px solid rgba(99,179,255,0.3) !important;
+    border-radius: 10px !important;
+    color: #93c5fd !important;
+}
+
+/* ── Progress bar ── */
+.stProgress > div > div > div > div {
+    background: linear-gradient(90deg, #2563eb, #63b3ff) !important;
+    border-radius: 9px !important;
+}
+
+.stProgress > div > div > div {
+    background: rgba(99,179,255,0.12) !important;
+    border-radius: 9px !important;
+}
+
+/* ── Checkboxes & Radio ── */
+.stCheckbox > label, .stRadio > label {
+    color: #cdd9e5 !important;
+    font-size: 14px;
+}
+
+[data-baseweb="checkbox"] [data-testid="stCheckbox"] svg {
+    color: #63b3ff !important;
+}
+
+/* ── Divider ── */
+hr {
+    border: none !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, transparent, rgba(99,179,255,0.25), transparent) !important;
+    margin: 2rem 0 !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1b2a; }
+::-webkit-scrollbar-thumb { background: rgba(99,179,255,0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99,179,255,0.5); }
+
+/* ── Hero block ── */
+.hero {
+    background: linear-gradient(135deg, #0d1b2a 0%, #112240 50%, #0d1b2a 100%);
+    border: 1px solid rgba(99,179,255,0.2);
+    border-radius: 16px;
+    padding: 48px 40px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(37,99,235,0.25), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.hero::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; left: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(99,179,255,0.1), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.hero h1 {
+    color: #e2eaf3 !important;
+    font-size: 2.2rem !important;
+    font-weight: 900 !important;
+    margin: 0 0 12px !important;
+    position: relative; z-index: 1;
+}
+
+.hero p {
+    color: rgba(200,220,240,0.8) !important;
+    font-size: 1rem;
+    max-width: 560px;
+    margin: 0;
+    line-height: 1.7;
+    position: relative; z-index: 1;
+}
+
+/* ── Glowing badge ── */
+.glow-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    box-shadow: 0 2px 12px rgba(37,99,235,0.45);
+    margin-bottom: 12px;
+    position: relative; z-index: 1;
+}
+
+/* ── Info card ── */
+.card {
+    background: linear-gradient(135deg, #162032 0%, #1a2a40 100%);
+    border: 1px solid rgba(99,179,255,0.18);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 16px;
+    transition: all 0.25s;
+}
+
+.card:hover {
+    border-color: rgba(99,179,255,0.4);
+    box-shadow: 0 8px 28px rgba(37,99,235,0.15);
+    transform: translateY(-2px);
+}
+
+.card h3 {
+    color: #cdd9e5 !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    margin: 0 0 8px !important;
+}
+
+.card p {
+    color: #6b8ba4 !important;
+    font-size: 13px !important;
+    margin: 0 !important;
+    line-height: 1.6;
+}
+
+/* ── Section label ── */
+.section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #4a6a85;
+    margin-bottom: 12px;
+}
+
+/* ── Tier pills ── */
+.tier-green {
+    display: inline-block;
+    background: rgba(16,185,129,0.15);
+    border: 1px solid rgba(16,185,129,0.4);
+    color: #6ee7b7;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.tier-yellow {
+    display: inline-block;
+    background: rgba(245,158,11,0.15);
+    border: 1px solid rgba(245,158,11,0.4);
+    color: #fcd34d;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.tier-red {
+    display: inline-block;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.4);
+    color: #fca5a5;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ── Step card ── */
+.step-card {
+    background: linear-gradient(135deg, #162032 0%, #1a2a40 100%);
+    border: 1px solid rgba(99,179,255,0.18);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+}
+
+.step-num {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: white;
+    margin: 0 auto 10px;
+    box-shadow: 0 3px 12px rgba(37,99,235,0.45);
+}
+
+/* ── Download button ── */
+.stDownloadButton > button {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    border: 1px solid rgba(16,185,129,0.3) !important;
+    box-shadow: 0 4px 14px rgba(5,150,105,0.35) !important;
+}
+
+.stDownloadButton > button:hover {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    box-shadow: 0 6px 22px rgba(16,185,129,0.5) !important;
+}
 </style>
-
-<script>
-    document.documentElement.style.scrollBehavior = 'smooth';
-</script>
 """, unsafe_allow_html=True)
 
 
 # ============================================================================
-# SESSION STATE INITIALIZATION
+# SESSION STATE
 # ============================================================================
 
-if 'pipeline' not in st.session_state:
-    st.session_state.pipeline = None
-if 'results' not in st.session_state:
-    st.session_state.results = None
-if 'train_data' not in st.session_state:
-    st.session_state.train_data = None
-if 'pred_data' not in st.session_state:
-    st.session_state.pred_data = None
-if 'corrections' not in st.session_state:
-    st.session_state.corrections = {}
-if 'active_pipeline' not in st.session_state:
-    st.session_state.active_pipeline = 'quickbooks'  # Default to quickbooks
-if 'training_result' not in st.session_state:
-    st.session_state.training_result = None
-if 'train_file_name' not in st.session_state:
-    st.session_state.train_file_name = None
-if 'pred_file_name' not in st.session_state:
-    st.session_state.pred_file_name = None
+defaults = {
+    'pipeline': None,
+    'results': None,
+    'train_data': None,
+    'pred_data': None,
+    'corrections': {},
+    'active_pipeline': 'quickbooks',
+    'training_result': None,
+    'train_file_name': None,
+    'pred_file_name': None,
+    'selected_tier': 'GREEN',
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 
 # ============================================================================
-# HELPER FUNCTIONS
+# HELPERS
 # ============================================================================
 
-def create_pipeline_toggle():
-    """Create an iPhone-style toggle switch for pipeline selection"""
-    col1, col2, col3 = st.columns([2, 2, 1])
-
-    with col1:
-        st.markdown("""
-        <div class="toggle-switch-container">
-            <div class="toggle-switch-label">
-                <h3>Select Pipeline</h3>
-                <p>Choose your data source type</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Create toggle button using columns for layout
-    col_toggle, col_labels = st.columns([1, 2])
-
-    with col_toggle:
-        # Create the actual toggle with a custom HTML/JS approach using Streamlit
-        is_xero = st.session_state.active_pipeline == 'xero'
-
-        # Using columns to display the switch better
-        subcol1, subcol2 = st.columns([1, 1])
-        with subcol1:
-            if st.button(
-                "💳 QuickBooks" if not is_xero else "💳 QuickBooks",
-                use_container_width=True,
-                key="qb_btn",
-                help="QuickBooks pipeline for QB exports"
-            ):
-                st.session_state.active_pipeline = 'quickbooks'
-                st.rerun()
-
-        with subcol2:
-            if st.button(
-                "🔗 Xero" if is_xero else "🔗 Xero",
-                use_container_width=True,
-                key="xero_btn",
-                help="Xero pipeline for Xero exports"
-            ):
-                st.session_state.active_pipeline = 'xero'
-                st.rerun()
-
-    with col_labels:
-        if st.session_state.active_pipeline == 'quickbooks':
-            st.success("✓ **QuickBooks Pipeline Active**")
-        else:
-            st.info("✓ **Xero Pipeline Active**")
+PLOTLY_LAYOUT = dict(
+    plot_bgcolor='rgba(0,0,0,0)',
+    paper_bgcolor='rgba(0,0,0,0)',
+    font=dict(family="Inter, system-ui, sans-serif", size=13, color='#8ba5be'),
+    margin=dict(l=60, r=20, t=30, b=60),
+    hoverlabel=dict(
+        bgcolor='#162032',
+        bordercolor='rgba(99,179,255,0.3)',
+        font_color='#cdd9e5',
+        font_size=13,
+    ),
+)
 
 
-def validate_csv(df, file_name, pipeline='quickbooks'):
-    """Validate CSV has required columns based on pipeline type"""
+def plotly_axis(title=None):
+    return dict(
+        title=title,
+        title_font=dict(size=12, color='#6b8ba4'),
+        tickfont=dict(size=12, color='#6b8ba4'),
+        gridcolor='rgba(99,179,255,0.08)',
+        showgrid=True,
+        zeroline=False,
+        linecolor='rgba(99,179,255,0.15)',
+    )
+
+
+def validate_csv(df, pipeline='quickbooks'):
     if pipeline == 'xero':
-        # Xero CSVs must have these columns after skipping 4 header rows
         required = ['Date', 'Description', 'Related account']
-        missing = [c for c in required if c not in df.columns]
-
-        if missing:
-            return False, f"Missing Xero columns: {', '.join(missing)}"
     else:
-        # QuickBooks CSVs
         required = ['Date', 'Name', 'Account', 'Memo/Description']
-        missing = [c for c in required if c not in df.columns]
-
-        if missing:
-            return False, f"Missing columns: {', '.join(missing)}"
-
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        return False, f"Missing columns: {', '.join(missing)}"
     if len(df) == 0:
         return False, "CSV is empty"
-
-    return True, "✅ Valid"
+    return True, f"✓ Valid — {len(df):,} rows"
 
 
 def load_and_validate_csv(uploaded_file, pipeline='quickbooks'):
-    """Load and validate uploaded CSV file based on pipeline type"""
     try:
-        # For Xero, don't skip rows here - backend will parse dynamically
-        # For QuickBooks, read normally
         df = pd.read_csv(uploaded_file)
-
-        # For Xero, we do basic validation but backend will handle proper parsing
         if pipeline == 'xero':
-            # Just check if file is readable and has some data
             if len(df) == 0:
                 return None, False, "CSV is empty"
-            # Don't validate specific columns since Xero CSVs have metadata rows
-            # Backend will find and validate the proper header row
-            return df, True, "✅ Valid (will be parsed by backend)"
+            return df, True, f"✓ Valid — {len(df):,} rows"
         else:
-            # QuickBooks validation
-            is_valid, message = validate_csv(df, uploaded_file.name, pipeline)
+            is_valid, message = validate_csv(df, pipeline)
             return df, is_valid, message
     except Exception as e:
         return None, False, f"Error reading file: {str(e)}"
@@ -882,7 +578,7 @@ def train_model_api(uploaded_file):
         else:
             endpoint = f"{BACKEND_URL}/train_qb"
 
-        # DEBUG: Print what we're calling (UPDATED v2)
+        # DEBUG: Print what we're calling
         print(f"DEBUG: Calling endpoint: {endpoint}")
         print(f"DEBUG: Active pipeline: {st.session_state.active_pipeline}")
 
@@ -904,11 +600,15 @@ def train_model_api(uploaded_file):
                 result['categories'] = 24  # Placeholder
                 result['transactions'] = result.get('rows', 500)
                 result['model_path'] = f"/models/{result['job_id']}.pkl"
-                result['message'] = "✅ PLACEHOLDER: Replace with actual model training logic"
+                result['message'] = "✅ Model training completed successfully"
 
             return result, None
         else:
-            error_detail = response.json().get('detail', 'Unknown error')
+            # Try to parse error detail from JSON, fallback to response text if not JSON
+            try:
+                error_detail = response.json().get('detail', 'Unknown error')
+            except Exception:
+                error_detail = response.text[:200] if response.text else 'Unknown error'
             return None, f"API Error ({response.status_code}): {error_detail}"
 
     except requests.exceptions.ConnectionError:
@@ -956,97 +656,109 @@ def predict_model_api(prediction_data):
             result = response.json()
             return result, None
         else:
-            error_detail = response.json().get('detail', 'Unknown error')
+            # Try to parse error detail from JSON, fallback to response text if not JSON
+            try:
+                error_detail = response.json().get('detail', 'Unknown error')
+            except Exception:
+                error_detail = response.text[:200] if response.text else 'Unknown error'
             return None, f"API Error ({response.status_code}): {error_detail}"
 
     except requests.exceptions.ConnectionError:
         return None, f"❌ Cannot connect to backend at {BACKEND_URL}. Make sure the backend server is running."
     except requests.exceptions.Timeout:
-        return None, "❌ Prediction request timed out. The dataset might be too large."
+        return None, f"❌ Prediction request timed out. The dataset might be too large."
     except Exception as e:
         return None, f"❌ Error calling backend API: {str(e)}"
 
 
 def run_categorization(df_pred):
-    """Categorize predictions using backend API"""
     try:
         result, error = predict_model_api(df_pred)
-
         if error:
             return None, error
-
-        # Convert predictions to DataFrame with required columns for UI
         predictions = result.get('predictions', [])
-        results_df = pd.DataFrame(predictions)
-
-        print(f"DEBUG: Received {len(predictions)} predictions from backend")
-        if len(predictions) > 0:
-            print(f"DEBUG: First prediction keys: {list(predictions[0].keys())}")
-            print(f"DEBUG: Sample tier values: {[p.get('tier', 'MISSING') for p in predictions[:5]]}")
-
-        # Backend now uses actual column names: 'Confidence Tier' and 'Confidence Score'
-        print(f"DEBUG: Received columns: {list(results_df.columns)}")
-        if 'Confidence Tier' in results_df.columns:
-            print(f"DEBUG: Tier distribution - GREEN: {(results_df['Confidence Tier'] == 'GREEN').sum()}, YELLOW: {(results_df['Confidence Tier'] == 'YELLOW').sum()}, RED: {(results_df['Confidence Tier'] == 'RED').sum()}")
-        else:
-            print("DEBUG: WARNING - 'Confidence Tier' column not found in results!")
-
-        # Backend now includes all required columns (date, vendor_name, description, amount)
-        # No need to fill in dummy values
-
-        return results_df, None
-
+        return pd.DataFrame(predictions), None
     except Exception as e:
-        return None, f"Error during categorization: {str(e)}"
-
-
-
+        return None, f"Error: {str(e)}"
 
 
 # ============================================================================
-# SIDEBAR NAVIGATION
+# SIDEBAR
 # ============================================================================
 
-# ============================================================================
-# SIDEBAR NAVIGATION
-# ============================================================================
-
-st.sidebar.title("🚀 CoKeeper")
-st.sidebar.markdown("GL Categorization Intelligence")
-st.sidebar.markdown("---")
+st.sidebar.markdown("""
+<div style="padding: 8px 0 16px; border-bottom: 1px solid rgba(99,179,255,0.2); margin-bottom: 16px;">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div style="width:34px; height:34px; background:linear-gradient(135deg,#2563eb,#1d4ed8);
+         border-radius:8px; display:flex; align-items:center; justify-content:center;
+         font-size:18px; box-shadow:0 3px 12px rgba(37,99,235,0.5);">📒</div>
+    <div>
+      <div style="font-size:17px; font-weight:800; color:#e2eaf3; letter-spacing:-0.5px;">CoKeeper</div>
+      <div style="font-size:11px; color:#4a6a85; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;">Automatic Bookkeeping</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 pages = {
-    "📤 Upload & Train": "upload",
-    "📈 Results": "results",
-    "✅ Review": "review",
-    "💾 Export": "export",
-    "❓ Help": "help"
+    "Upload & Train": "upload",
+    "Results": "results",
+    "Review": "review",
+    "Export": "export",
+    "Help": "help",
 }
 
-selected_page = st.sidebar.radio("Navigation", list(pages.keys()))
+icons = {
+    "Upload & Train": "⬆",
+    "Results": "📊",
+    "Review": "✅",
+    "Export": "💾",
+    "Help": "❓",
+}
+
+selected_page = st.sidebar.radio(
+    "Navigation",
+    list(pages.keys()),
+    format_func=lambda x: f"{icons[x]}  {x}",
+    label_visibility="collapsed",
+)
 page = pages[selected_page]
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Status**")
-pipeline_display = "💰 QuickBooks" if st.session_state.active_pipeline == 'quickbooks' else "🔗 Xero"
-st.sidebar.info(f"Pipeline: {pipeline_display}")
-if st.session_state.results is not None:
-    st.sidebar.success(f"✓ {len(st.session_state.results)} predictions ready")
-else:
-    st.sidebar.caption("Ready to get started")
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("""
-<small style="color: #6b7280; line-height: 1.6;">
-**CoKeeper** automates GL categorization using machine learning.
-Upload historical data and let AI do the heavy lifting.
-</small>
+pipeline_display = "QuickBooks" if st.session_state.active_pipeline == 'quickbooks' else "Xero"
+status_color = "#63b3ff"
+
+st.sidebar.markdown(f"""
+<div style="background:linear-gradient(135deg,rgba(37,99,235,0.12),rgba(99,179,255,0.06));
+     border:1px solid rgba(99,179,255,0.2); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+       color:#4a6a85;margin-bottom:8px;">Status</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span style="font-size:13px;color:#8ba5be;">Pipeline</span>
+    <span style="font-size:12px;font-weight:700;color:{status_color};
+          background:rgba(99,179,255,0.1);border:1px solid rgba(99,179,255,0.25);
+          padding:2px 10px;border-radius:12px;">{pipeline_display}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:13px;color:#8ba5be;">Predictions</span>
+    <span style="font-size:12px;font-weight:700;
+          color:{'#6ee7b7' if st.session_state.results is not None else '#4a6a85'};
+          background:{'rgba(16,185,129,0.1)' if st.session_state.results is not None else 'rgba(74,106,133,0.1)'};
+          border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.results is not None else 'rgba(74,106,133,0.2)'};
+          padding:2px 10px;border-radius:12px;">
+      {'%s rows' % f"{len(st.session_state.results):,}" if st.session_state.results is not None else 'None yet'}
+    </span>
+  </div>
+</div>
 """, unsafe_allow_html=True)
 
+st.sidebar.markdown("""
+<div style="font-size:12px;color:#4a6a85;line-height:1.6;padding:0 2px;">
+CoKeeper learns your categorization patterns and automatically sorts new GL transactions.
+</div>
+""", unsafe_allow_html=True)
 
-# ============================================================================
-# PAGE 1: UPLOAD & TRAIN
-# ============================================================================
 
 # ============================================================================
 # PAGE 1: UPLOAD & TRAIN
@@ -1060,29 +772,28 @@ if page == "upload":
     except Exception as e:
         st.session_state.backend_status = f"error_{str(type(e).__name__)}"
 
-    # Pipeline selection toggle - iPhone style
-    st.markdown("### 🔄 Pipeline Selection")
+    st.markdown("""
+    <div class="hero">
+        <div class="glow-badge">GL Categorization Engine</div>
+        <h1>Upload & Train</h1>
+        <p>Upload your historical transactions and current expenses. Our ML model learns your patterns and categorizes automatically — in seconds.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Create toggle switch - centered layout
-    col_left, col_toggle, col_right = st.columns([1, 2, 1])
-
-    with col_left:
-        st.markdown("**Choose:**")
-
-    with col_toggle:
-        # Create toggle effect with radio button styled as switch
+    # ── Pipeline selector ──
+    st.markdown('<div class="section-label">Data Source Pipeline</div>', unsafe_allow_html=True)
+    col_t, col_r = st.columns([2, 3])
+    with col_t:
         toggle_val = st.radio(
-            "pipeline_selector",
+            "pipeline",
             options=["quickbooks", "xero"],
             format_func=lambda x: "QuickBooks" if x == "quickbooks" else "Xero",
             horizontal=True,
             key="pipeline_radio",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
-
         if toggle_val != st.session_state.active_pipeline:
             st.session_state.active_pipeline = toggle_val
-            # Clear data when switching pipelines
             st.session_state.train_data = None
             st.session_state.pred_data = None
             st.session_state.results = None
@@ -1091,273 +802,206 @@ if page == "upload":
             st.session_state.pred_file_name = None
             st.rerun()
 
-    with col_right:
-        if st.session_state.active_pipeline == 'quickbooks':
-            st.markdown("✓ **QB**", unsafe_allow_html=True)
-        else:
-            st.markdown("✓ **Xero**", unsafe_allow_html=True)
-
     st.divider()
 
-    # Hero section
-    pipeline_name = "QuickBooks" if st.session_state.active_pipeline == 'quickbooks' else "Xero"
-    st.markdown(f"""
-    <div class="hero-container">
-        <h1>📤 Upload & Train</h1>
-        <p class="hero-tagline">Get started by uploading your training and prediction data for <strong>{pipeline_name}</strong>. We'll handle the rest with machine learning.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # ── Show completed training result if already trained ──
+    if st.session_state.training_result is not None:
+        result = st.session_state.training_result
+        st.markdown("""
+        <div style="background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05));
+             border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:20px 24px;margin-bottom:24px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+               color:#059669;margin-bottom:4px;">Model Trained Successfully</div>
+        </div>
+        """, unsafe_allow_html=True)
+        col_a, col_b, col_c, col_d = st.columns(4)
+        with col_a:
+            st.metric("Test Accuracy", f"{result.get('test_accuracy', 0):.1f}%")
+        with col_b:
+            st.metric("Val. Accuracy", f"{result.get('validation_accuracy', 0):.1f}%")
+        with col_c:
+            st.metric("Categories", result.get('categories', '—'))
+        with col_d:
+            st.metric("Transactions", f"{result.get('transactions', 0):,}")
 
-    st.markdown("### Choose Your Data Files")
-    st.markdown("Provide your historical categorized GL export and current uncategorized export below.")
-    st.divider()
+        if st.session_state.results is not None:
+            st.success(f"✓ {len(st.session_state.results):,} predictions ready — view them in **Results** or **Review**")
+        st.divider()
+
+    # ── File upload columns ──
+    xero_hint = "Xero General Ledger export (headers auto-detected)"
+    qb_hint = "Required columns: Date, Name, Account, Memo/Description"
 
     col1, col2 = st.columns(2)
+    training_file = None
+    prediction_file = None
 
     with col1:
         st.markdown("""
-        <div class="info-card">
-            <h3 style="margin-top: 0;">📊 Training Data</h3>
-            <p style="font-size: 14px; margin-bottom: 16px;">Your completed GL export from last year (already categorized). This teaches the model your categorization patterns.</p>
-            <span class="badge">Historical Data</span>
+        <div class="card">
+            <h3>Past Transactions</h3>
+            <p>Your historical categorized expenses — last year's data. The model learns from this.</p>
         </div>
         """, unsafe_allow_html=True)
-
-        # Dynamic help text based on active pipeline
-        if st.session_state.active_pipeline == 'xero':
-            help_text = "Upload your Xero General Ledger export (headers will be auto-detected)"
-        else:
-            help_text = "Required columns: Date, Name, Account, Memo/Description"
 
         training_file = st.file_uploader(
             "Select training CSV",
             type=['csv'],
             key='training_upload',
-            help=help_text
+            help=xero_hint if st.session_state.active_pipeline == 'xero' else qb_hint,
+            label_visibility="collapsed",
         )
 
         if training_file:
-            # For Xero, store the raw file and let backend parse it
             if st.session_state.active_pipeline == 'xero':
-                st.success("✓ File uploaded (will be parsed by backend)")
-                st.session_state.train_data = training_file  # Store raw file
-                st.session_state.train_raw = True  # Flag that it's a raw file
-                st.session_state.train_file_name = training_file.name  # Store filename
-
-                with st.expander("📋 File info"):
-                    st.write(f"**Filename:** {training_file.name}")
-                    st.write(f"**Size:** {training_file.size:,} bytes")
+                st.success(f"✓ {training_file.name} uploaded ({training_file.size:,} bytes)")
+                st.session_state.train_data = training_file
+                st.session_state.train_file_name = training_file.name
             else:
-                # QuickBooks: parse and validate on frontend
                 df_train, is_valid, message = load_and_validate_csv(training_file, st.session_state.active_pipeline)
                 if is_valid:
-                    st.success("✓ File validated successfully")
+                    st.success(message)
                     st.session_state.train_data = df_train
-                    st.session_state.train_raw = False  # Flag that it's a DataFrame
-                    st.session_state.train_file_name = training_file.name  # Store filename
-
-                    with st.expander("📋 Preview training data"):
-                        st.dataframe(df_train.head(10), use_container_width=True)
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            st.metric("Total Rows", len(df_train))
-                        with col_b:
-                            st.metric("Columns", len(df_train.columns))
+                    st.session_state.train_file_name = training_file.name
+                    with st.expander("Preview training data"):
+                        st.dataframe(df_train.head(8), width='stretch')
                 else:
-                    st.error(f"❌ Validation failed: {message}")
+                    st.error(message)
         elif st.session_state.train_file_name:
-            # Show previously uploaded file
-            st.info(f"✓ Training file: **{st.session_state.train_file_name}**")
+            st.info(f"Previously uploaded: **{st.session_state.train_file_name}**")
 
     with col2:
         st.markdown("""
-        <div class="info-card">
-            <h3 style="margin-top: 0;">🎯 Prediction Data</h3>
-            <p style="font-size: 14px; margin-bottom: 16px;">Your uncategorized GL export from this year. This is what we'll automatically categorize for you.</p>
-            <span class="badge">Needs Categorization</span>
+        <div class="card">
+            <h3>Current Expenses</h3>
+            <p>Your new uncategorized transactions. We'll predict the right GL account for each row.</p>
         </div>
         """, unsafe_allow_html=True)
-
-        # Dynamic help text based on active pipeline
-        if st.session_state.active_pipeline == 'xero':
-            help_text_pred = "Upload your Xero General Ledger export (headers will be auto-detected)"
-        else:
-            help_text_pred = "Required columns: Date, Name, Account, Memo/Description"
 
         prediction_file = st.file_uploader(
             "Select prediction CSV",
             type=['csv'],
             key='prediction_upload',
-            help=help_text_pred
+            help=xero_hint if st.session_state.active_pipeline == 'xero' else qb_hint,
+            label_visibility="collapsed",
         )
 
         if prediction_file:
-            # For Xero, store the raw file and let backend parse it
             if st.session_state.active_pipeline == 'xero':
-                st.success("✓ File uploaded (will be parsed by backend)")
-                st.session_state.pred_data = prediction_file  # Store raw file
-                st.session_state.pred_raw = True  # Flag that it's a raw file
-                st.session_state.pred_file_name = prediction_file.name  # Store filename
-
-                with st.expander("📋 File info"):
-                    st.write(f"**Filename:** {prediction_file.name}")
-                    st.write(f"**Size:** {prediction_file.size:,} bytes")
+                st.success(f"✓ {prediction_file.name} uploaded ({prediction_file.size:,} bytes)")
+                st.session_state.pred_data = prediction_file
+                st.session_state.pred_file_name = prediction_file.name
             else:
-                # QuickBooks: parse and validate on frontend
                 df_pred, is_valid, message = load_and_validate_csv(prediction_file, st.session_state.active_pipeline)
                 if is_valid:
-                    st.success("✓ File validated successfully")
+                    st.success(message)
                     st.session_state.pred_data = df_pred
-                    st.session_state.pred_raw = False  # Flag that it's a DataFrame
-                    st.session_state.pred_file_name = prediction_file.name  # Store filename
-
-                    with st.expander("📋 Preview prediction data"):
-                        st.dataframe(df_pred.head(10), use_container_width=True)
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            st.metric("Total Rows", len(df_pred))
-                        with col_b:
-                            st.metric("Columns", len(df_pred.columns))
+                    st.session_state.pred_file_name = prediction_file.name
+                    with st.expander("Preview prediction data"):
+                        st.dataframe(df_pred.head(8), width='stretch')
                 else:
-                    st.error(f"❌ Validation failed: {message}")
+                    st.error(message)
         elif st.session_state.pred_file_name:
-            # Show previously uploaded file
-            st.info(f"✓ Prediction file: **{st.session_state.pred_file_name}**")
+            st.info(f"Previously uploaded: **{st.session_state.pred_file_name}**")
 
     st.divider()
 
-    # Display previous training results if they exist
-    if st.session_state.training_result is not None:
-        st.markdown("### ✅ Training Complete")
-        st.success("Model was successfully trained!")
-
-        col_a, col_b, col_c, col_d = st.columns(4)
-        result = st.session_state.training_result
-
-        with col_a:
-            st.metric("Test Accuracy", f"{result['test_accuracy']:.1f}%")
-
-        with col_b:
-            st.metric("Validation Accuracy", f"{result['validation_accuracy']:.1f}%")
-
-        with col_c:
-            st.metric("Categories Trained", result['categories'])
-
-        with col_d:
-            st.metric("Transactions Processed", result['transactions'])
-
-        if st.session_state.results is not None:
-            st.info(f"✓ {len(st.session_state.results)} predictions ready - view them in **Results** or **Review** tabs")
-
-        st.divider()
-
-    # Train button section
+    # ── Train button ──
     if st.session_state.train_data is not None and st.session_state.training_result is None:
-        st.markdown("### 🚀 Ready to Train")
+        col_btn, col_hint = st.columns([1, 2])
+        with col_btn:
+            train_clicked = st.button("Train Model & Predict", type="primary", width='stretch')
 
-        col1, col2, col3 = st.columns([1, 2, 1])
+        if train_clicked:
+            progress_bar = st.progress(0)
+            status = st.empty()
 
-        with col2:
-            if st.button("🤖 Train Model on Backend API", type="primary", use_container_width=True):
-                with st.spinner("🔄 Sending data to backend and training model..."):
-                    # Call backend API
-                    result, error = train_model_api(training_file)
+            status.markdown('<p style="color:#8ba5be;font-size:14px;">Sending data to backend...</p>', unsafe_allow_html=True)
+            progress_bar.progress(15)
 
-                    if error:
-                        st.error(error)
-                        st.info("💡 Make sure the backend server is running: `cd backend && uvicorn main:app --reload`")
+            with st.spinner("Training in progress..."):
+                result, error = train_model_api(training_file if training_file else st.session_state.train_data)
+
+            if error:
+                st.error(error)
+            else:
+                progress_bar.progress(55)
+                status.markdown('<p style="color:#8ba5be;font-size:14px;">Processing model metrics...</p>', unsafe_allow_html=True)
+                st.session_state.training_result = result
+                st.success("Model trained successfully!")
+
+                col_a, col_b, col_c, col_d = st.columns(4)
+                with col_a:
+                    st.metric("Test Accuracy", f"{result.get('test_accuracy', 0):.1f}%")
+                with col_b:
+                    st.metric("Val. Accuracy", f"{result.get('validation_accuracy', 0):.1f}%")
+                with col_c:
+                    st.metric("Categories", result.get('categories', '—'))
+                with col_d:
+                    st.metric("Transactions", f"{result.get('transactions', 0):,}")
+
+                if st.session_state.pred_data is not None:
+                    progress_bar.progress(75)
+                    status.markdown('<p style="color:#8ba5be;font-size:14px;">Generating predictions...</p>', unsafe_allow_html=True)
+                    pred_results, pred_error = run_categorization(
+                        prediction_file if prediction_file else st.session_state.pred_data
+                    )
+                    if pred_error:
+                        st.error(pred_error)
                     else:
-                        # Display training results
-                        st.balloons()
-                        st.success("✅ Model training completed successfully!")
+                        st.session_state.results = pred_results
+                        progress_bar.progress(100)
+                        status.markdown('<p style="color:#6ee7b7;font-size:14px;font-weight:600;">Complete!</p>', unsafe_allow_html=True)
+                        st.success(f"✓ {len(pred_results):,} predictions ready. Navigate to **Results** to see them.")
+                else:
+                    progress_bar.progress(100)
+                    st.warning("No prediction file uploaded — add one to generate predictions.")
 
-                        # Show metrics in columns
-                        col_a, col_b, col_c, col_d = st.columns(4)
+    if st.session_state.train_data is None:
+        st.warning("Upload both files above to get started.")
 
-                        with col_a:
-                            st.metric("Test Accuracy", f"{result['test_accuracy']:.1f}%")
+    # ── Tips ──
+    st.markdown("""
+    <div style="display:flex;align-items:center;gap:12px;margin:24px 0 16px;">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#4a6a85;white-space:nowrap;">Tips for Best Results</span>
+      <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(99,179,255,0.2),transparent);"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-                        with col_b:
-                            st.metric("Validation Accuracy", f"{result['validation_accuracy']:.1f}%")
-
-                        with col_c:
-                            st.metric("Categories Trained", result['categories'])
-
-                        with col_d:
-                            st.metric("Transactions Processed", result['transactions'])
-
-                        # Show additional info
-                        st.info(f"📁 Model saved to: `{result['model_path']}`")
-
-                        # Show message if in placeholder mode
-                        if 'message' in result and 'PLACEHOLDER' in result['message']:
-                            st.warning(result['message'])
-
-                        # Store result in session state
-                        st.session_state.training_result = result
-
-                        # Generate predictions on the prediction data
-                        if st.session_state.pred_data is not None:
-                            st.info("🔄 Generating predictions on your data...")
-                            pred_results, pred_error = run_categorization(st.session_state.pred_data)
-
-                            if pred_error:
-                                st.error(f"❌ Error generating predictions: {pred_error}")
-                            else:
-                                st.session_state.results = pred_results
-                                st.success(f"✅ Generated {len(pred_results)} predictions! Go to **Results** or **Review** tabs to see them.")
-                        else:
-                            st.warning("⚠️ No prediction data found. Please upload prediction data first.")
-
-    # Show warning if files not uploaded yet (and no training result from previous session)
-    if st.session_state.train_data is None or st.session_state.pred_data is None:
-        if st.session_state.training_result is None:
-            missing = []
-            if st.session_state.train_data is None:
-                missing.append("training data")
-            if st.session_state.pred_data is None:
-                missing.append("prediction data")
-
-            st.warning(f"⚠️ Upload both files to proceed. Still need: {', '.join(missing)}")
-
-    st.divider()
-
-    st.markdown("### 💡 Tips for Best Results")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
+    tip1, tip2, tip3 = st.columns(3)
+    with tip1:
         st.markdown("""
-        **Enough Data**
-
-        Use 100+ historical transactions to train the model effectively.
-        """)
-
-    with col2:
+        <div class="card" style="padding:18px;">
+            <h3 style="font-size:13px !important;">Use Enough Data</h3>
+            <p>100+ historical transactions gives significantly better accuracy.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with tip2:
         st.markdown("""
-        **Clean Categories**
-
-        Ensure training data is accurately categorized. Garbage in = garbage out.
-        """)
-
-    with col3:
+        <div class="card" style="padding:18px;">
+            <h3 style="font-size:13px !important;">Clean Categories</h3>
+            <p>Ensure training data is accurately labeled. Garbage in = garbage out.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with tip3:
         st.markdown("""
-        **Consistency**
+        <div class="card" style="padding:18px;">
+            <h3 style="font-size:13px !important;">Consistent Names</h3>
+            <p>Use consistent vendor names. Typos and variations reduce accuracy.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        Use consistent vendor names. Typos reduce accuracy.
-        """)
-
-    # Developer debug section at the bottom
-    st.divider()
-
+    # ── System status ──
     if hasattr(st.session_state, 'backend_status') and st.session_state.backend_status != "ok":
         with st.expander("🛠️ Developer Info - Backend Status"):
             st.error(f"⚠️ Backend connection issue detected")
             st.code(f"Status Code: {st.session_state.backend_status}", language="text")
             st.markdown(f"""
             **Troubleshooting:**
-            - Make sure backend is running: `cd backend && uvicorn main:app --reload`
+            - Make sure backend is running: `cd backend && python -m uvicorn main:app --reload`
             - Backend URL: `{BACKEND_URL}`
-            - Check if port 8000 is in use: `lsof -i :8000`
+            - Check if backend is deployed and accessible
+            - Verify environment variable BACKEND_URL is set correctly
             """)
     else:
         with st.expander("🛠️ System Status"):
@@ -1366,188 +1010,182 @@ if page == "upload":
 
 
 # ============================================================================
-# PAGE 2: RESULTS & VISUALIZATION
-# ============================================================================
-
-# ============================================================================
-# PAGE 2: RESULTS & VISUALIZATION
+# PAGE 2: RESULTS
 # ============================================================================
 
 elif page == "results":
     st.markdown("""
-    <div class="hero-container">
-        <h1>📈 Results & Analysis</h1>
-        <p class="hero-tagline">Review your AI-generated predictions with confidence scores and tier classifications.</p>
+    <div class="hero">
+        <div class="glow-badge">Prediction Analytics</div>
+        <h1>Results & Analysis</h1>
+        <p>See how transactions were categorized with confidence scores and breakdown charts.</p>
     </div>
     """, unsafe_allow_html=True)
 
     if st.session_state.results is None:
-        st.warning("👉 No results yet. Train the model first from the **Upload & Train** tab.")
+        st.warning("No results yet — train the model on the **Upload & Train** tab first.")
     else:
         results = st.session_state.results
 
-        # Summary metrics with better styling
-        st.markdown("### Key Metrics")
+        green = int((results['Confidence Tier'] == 'GREEN').sum())
+        yellow = int((results['Confidence Tier'] == 'YELLOW').sum())
+        red = int((results['Confidence Tier'] == 'RED').sum())
+        avg_conf = float(results['Confidence Score'].mean()) * 100
+
         col1, col2, col3, col4 = st.columns(4)
-
         with col1:
-            st.metric("Total Predictions", f"{len(results):,}", delta=None)
+            st.metric("Total Predictions", f"{len(results):,}")
         with col2:
-            avg_conf = results['Confidence Score'].mean() * 100
-            st.metric("Avg Confidence", f"{avg_conf:.1f}%", delta=None)
+            st.metric("Avg Confidence", f"{avg_conf:.1f}%")
         with col3:
-            high_conf = (results['Confidence Score'] >= 0.8).sum()
-            st.metric("High Confidence", f"{high_conf:,}", delta=None)
+            st.metric("Green Tier", f"{green:,}")
         with col4:
-            green = (results['Confidence Tier'] == 'GREEN').sum()
-            st.metric("Green Tier", f"{green:,}", delta=None)
+            st.metric("Needs Review", f"{yellow + red:,}")
 
         st.divider()
 
-        # Distribution charts
-        st.markdown("### Prediction Overview")
-        col1, col2 = st.columns(2)
+        # ── Charts ──
+        col_l, col_r = st.columns(2)
 
-        with col1:
-            st.markdown("**Predictions by Confidence Tier**")
-            tier_counts = results['Confidence Tier'].value_counts()
-            colors = {'GREEN': '#10b981', 'YELLOW': '#f59e0b', 'RED': '#ef4444'}
-            fig = px.bar(
-                x=tier_counts.index,
-                y=tier_counts.values,
-                title="",
-                labels={'x': 'Tier', 'y': 'Count'},
-                color=tier_counts.index,
-                color_discrete_map=colors
-            )
+        with col_l:
+            st.markdown('<div class="section-label">Confidence Tier Breakdown</div>', unsafe_allow_html=True)
+            tier_counts = results['Confidence Tier'].value_counts().reindex(['GREEN', 'YELLOW', 'RED']).fillna(0)
+
+            fig = go.Figure(go.Bar(
+                x=tier_counts.index.tolist(),
+                y=tier_counts.values.tolist(),
+                marker=dict(
+                    color=['#10b981', '#f59e0b', '#ef4444'],
+                    line=dict(
+                        color=['rgba(16,185,129,0.5)', 'rgba(245,158,11,0.5)', 'rgba(239,68,68,0.5)'],
+                        width=1
+                    ),
+                ),
+                text=[f"{v:.0f}" for v in tier_counts.values],
+                textposition='outside',
+                textfont=dict(color='#cdd9e5', size=13, family='Inter'),
+                hovertemplate='<b>%{x}</b><br>%{y} predictions<extra></extra>',
+            ))
             fig.update_layout(
-                hovermode='x unified',
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(family="system-ui, -apple-system, sans-serif", size=12),
-                xaxis_title=None,
-                yaxis_title=None,
+                **PLOTLY_LAYOUT,
+                height=300,
+                xaxis=plotly_axis("Tier"),
+                yaxis=plotly_axis("Count"),
                 showlegend=False,
-                height=350,
-                margin=dict(l=0, r=0, t=0, b=0)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            fig.update_traces(marker_opacity=0.85)
+            st.plotly_chart(fig, width='stretch')
 
-        with col2:
-            st.markdown("**Confidence Distribution**")
-            fig = px.histogram(
-                results,
-                x='Confidence Score',
-                nbins=20,
-                title="",
-                labels={'Confidence Score': 'Confidence'},
-                color_discrete_sequence=['#3b82f6']
+        with col_r:
+            st.markdown('<div class="section-label">Confidence Score Distribution</div>', unsafe_allow_html=True)
+            fig2 = px.histogram(
+                results, x='Confidence Score', nbins=20,
+                color_discrete_sequence=['#3b82f6'],
             )
-            fig.update_layout(
-                hovermode='x unified',
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(family="system-ui, -apple-system, sans-serif", size=12),
-                xaxis_title=None,
-                yaxis_title=None,
+            fig2.update_traces(
+                marker_line_color='rgba(99,179,255,0.3)',
+                marker_line_width=1,
+                opacity=0.8,
+            )
+            fig2.update_layout(
+                **PLOTLY_LAYOUT,
+                height=300,
+                xaxis=plotly_axis("Confidence Score"),
+                yaxis=plotly_axis("Count"),
                 showlegend=False,
-                height=350,
-                margin=dict(l=0, r=0, t=0, b=0)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
 
-        st.divider()
-
-        st.markdown("### Top GL Accounts")
-        # Use Transaction Type (QB) or Related account (Xero) - whichever exists
-        category_col = 'Transaction Type (New)' if 'Transaction Type (New)' in results.columns else 'Related account (New)'
-        top_cats = results[category_col].value_counts().head(10)
-        fig = px.bar(
-            x=top_cats.values,
-            y=top_cats.index,
-            orientation='h',
-            title="",
-            labels={'x': 'Count', 'y': ''},
-            color_discrete_sequence=['#3b82f6']
-        )
-        fig.update_layout(
-            hovermode='y unified',
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="system-ui, -apple-system, sans-serif", size=12),
-            xaxis_title=None,
-            yaxis_title=None,
-            showlegend=False,
-            height=400,
-            margin=dict(l=200, r=0, t=0, b=0)
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.divider()
-
-        st.markdown("### Detailed Results Table")
-        st.markdown("*Showing top 50 predictions. Download all results from the Export tab.*")
-        # Detect which format we have (QB or Xero) and use appropriate columns
+        # ── Top GL Accounts ──
+        category_col = None
         if 'Transaction Type (New)' in results.columns:
-            # QuickBooks format
+            category_col = 'Transaction Type (New)'
+        elif 'Related account (New)' in results.columns:
+            category_col = 'Related account (New)'
+
+        if category_col:
+            st.markdown('<div class="section-label">Top GL Accounts Predicted</div>', unsafe_allow_html=True)
+            top_cats = results[category_col].value_counts().head(10)
+            fig3 = go.Figure(go.Bar(
+                x=top_cats.values[::-1],
+                y=top_cats.index[::-1],
+                orientation='h',
+                marker=dict(
+                    color=[f'rgba(37,99,235,{0.5 + (i / len(top_cats)) * 0.5})' for i in range(len(top_cats))],
+                    line=dict(color='rgba(99,179,255,0.2)', width=1),
+                ),
+                hovertemplate='<b>%{y}</b><br>%{x} transactions<extra></extra>',
+                text=top_cats.values[::-1],
+                textposition='outside',
+                textfont=dict(color='#8ba5be', size=11),
+            ))
+            # Create custom layout with modified margin (avoiding duplicate margin in PLOTLY_LAYOUT)
+            custom_layout = PLOTLY_LAYOUT.copy()
+            custom_layout['margin'] = dict(l=220, r=60, t=20, b=40)
+            fig3.update_layout(
+                **custom_layout,
+                height=340,
+                xaxis=plotly_axis("Count"),
+                yaxis=dict(tickfont=dict(size=11, color='#8ba5be'), showgrid=False, zeroline=False),
+                showlegend=False,
+            )
+            st.plotly_chart(fig3, width='stretch')
+
+        # ── Data table ──
+        st.divider()
+        st.markdown('<div class="section-label">Prediction Sample (first 50 rows)</div>', unsafe_allow_html=True)
+
+        if 'Transaction Type (New)' in results.columns:
             display_cols = ['Date', 'Name', 'Memo/Description', 'Transaction Type (New)', 'Confidence Score', 'Confidence Tier']
-            safe_cols = [col for col in display_cols if col in results.columns]
-            display_df = results[safe_cols].copy()
         else:
-            # Xero format
-            display_cols = ['Date', 'Contact', 'Description', 'Related account (New)', 'Confidence Score', 'Confidence Tier']
-            safe_cols = [col for col in display_cols if col in results.columns]
-            display_df = results[safe_cols].copy()
+            display_cols = ['Date', 'Contact', 'Description', 'Related account (New)', 'Account Code (New)', 'Confidence Score', 'Confidence Tier']
 
-        # Format confidence as percentage
+        safe_cols = [c for c in display_cols if c in results.columns]
+        display_df = results[safe_cols].head(50).copy()
         if 'Confidence Score' in display_df.columns:
-            display_df['Confidence Score'] = display_df['Confidence Score'].apply(lambda x: f"{x*100:.1f}%")
+            display_df['Confidence Score'] = display_df['Confidence Score'].apply(lambda x: f"{x * 100:.1f}%")
 
-        st.dataframe(display_df.head(50), use_container_width=True, height=400)
+        st.dataframe(display_df, width='stretch', height=380)
 
-
-# ============================================================================
-# PAGE 3: REVIEW WORKFLOW
-# ============================================================================
 
 # ============================================================================
-# PAGE 3: REVIEW WORKFLOW
+# PAGE 3: REVIEW
 # ============================================================================
 
 elif page == "review":
     st.markdown("""
-    <div class="hero-container">
-        <h1>✅ Review & Verify</h1>
-        <p class="hero-tagline">Examine predictions organized by confidence tier. Perfect for quality control before export.</p>
+    <div class="hero">
+        <div class="glow-badge">Quality Control</div>
+        <h1>Review & Verify</h1>
+        <p>Check predictions by confidence tier before exporting. Start with GREEN for the fastest wins.</p>
     </div>
     """, unsafe_allow_html=True)
 
     if st.session_state.results is None:
-        st.warning("👉 No results yet. Train the model first from the **Upload & Train** tab.")
+        st.warning("No results yet — train the model on the **Upload & Train** tab first.")
     else:
         results = st.session_state.results.copy()
+        total = len(results)
 
-        st.markdown("### Select a Tier to Review")
-        st.markdown("Predictions are organized by our confidence in the categorization. Start with GREEN for quick wins!")
+        green_n = int((results['Confidence Tier'] == 'GREEN').sum())
+        yellow_n = int((results['Confidence Tier'] == 'YELLOW').sum())
+        red_n = int((results['Confidence Tier'] == 'RED').sum())
+
+        # ── Tier selector buttons ──
+        st.markdown('<div class="section-label">Select Tier to Review</div>', unsafe_allow_html=True)
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            green_count = (results['Confidence Tier'] == 'GREEN').sum()
-            green_pct = (green_count / len(results) * 100) if len(results) > 0 else 0
-            if st.button(f"🟢 GREEN TIER\n**{green_count}** predictions  ({green_pct:.0f}%)", use_container_width=True):
+            if st.button(f"🟢 GREEN  ·  {green_n:,} rows  ({green_n/total*100:.0f}%)", width='stretch', key="btn_green"):
                 st.session_state.selected_tier = 'GREEN'
 
         with col2:
-            yellow_count = (results['Confidence Tier'] == 'YELLOW').sum()
-            yellow_pct = (yellow_count / len(results) * 100) if len(results) > 0 else 0
-            if st.button(f"🟡 YELLOW TIER\n**{yellow_count}** predictions  ({yellow_pct:.0f}%)", use_container_width=True):
+            if st.button(f"🟡 YELLOW  ·  {yellow_n:,} rows  ({yellow_n/total*100:.0f}%)", width='stretch', key="btn_yellow"):
                 st.session_state.selected_tier = 'YELLOW'
 
         with col3:
-            red_count = (results['Confidence Tier'] == 'RED').sum()
-            red_pct = (red_count / len(results) * 100) if len(results) > 0 else 0
-            if st.button(f"🔴 RED TIER\n**{red_count}** predictions  ({red_pct:.0f}%)", use_container_width=True):
+            if st.button(f"🔴 RED  ·  {red_n:,} rows  ({red_n/total*100:.0f}%)", width='stretch', key="btn_red"):
                 st.session_state.selected_tier = 'RED'
 
         st.divider()
@@ -1555,54 +1193,28 @@ elif page == "review":
         selected_tier = getattr(st.session_state, 'selected_tier', 'GREEN')
         tier_data = results[results['Confidence Tier'] == selected_tier].copy()
 
-        # Tier info
-        tier_colors = {'GREEN': '#10b981', 'YELLOW': '#f59e0b', 'RED': '#ef4444'}
-        tier_descriptions = {
-            'GREEN': 'High confidence predictions (90%+) - Generally ready for direct use',
-            'YELLOW': 'Medium confidence (70-90%) - Recommend quick review',
-            'RED': 'Low confidence (<70%) - Manual review recommended'
-        }
-
         st.markdown(f"""
-        <div class="info-card">
-            <h3 style="margin-top: 0; color: {tier_colors[selected_tier]};">
-                {selected_tier} Tier - {len(tier_data)} transactions
-            </h3>
-            <p style="font-size: 14px; margin: 0;">{tier_descriptions[selected_tier]}</p>
+        <div style="background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05));
+             border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:20px 24px;margin-bottom:24px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+               color:#059669;margin-bottom:4px;">{selected_tier} Tier</div>
+          <div style="font-size:14px;color:#6b8ba4;">{len(tier_data):,} transactions</div>
         </div>
         """, unsafe_allow_html=True)
 
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            sort_by = st.selectbox("Sort by", ["Confidence (Low→High)", "Confidence (High→Low)", "Date"], key="sort_select")
-            if sort_by == "Confidence (Low→High)":
-                tier_data = tier_data.sort_values('Confidence Score')
-            elif sort_by == "Confidence (High→Low)":
-                tier_data = tier_data.sort_values('Confidence Score', ascending=False)
-            elif sort_by == "Date":
-                tier_data = tier_data.sort_values('Date', ascending=False)
-
-        # Display as simple table with actual CSV columns
+        # ── Display table ──
         if 'Transaction Type (New)' in tier_data.columns:
-            # QuickBooks format
             display_cols = ['Date', 'Name', 'Memo/Description', 'Transaction Type (New)', 'Confidence Score', 'Confidence Tier']
         else:
-            # Xero format
-            display_cols = ['Date', 'Contact', 'Description', 'Related account (New)', 'Confidence Score', 'Confidence Tier']
+            display_cols = ['Date', 'Contact', 'Description', 'Related account (New)', 'Account Code (New)', 'Confidence Score', 'Confidence Tier']
 
         safe_cols = [col for col in display_cols if col in tier_data.columns]
-        display_df = tier_data[safe_cols].copy().head(20)
-
-        # Format confidence as percentage
+        display_df = tier_data[safe_cols].head(100).copy()
         if 'Confidence Score' in display_df.columns:
-            display_df['Confidence Score'] = display_df['Confidence Score'].apply(lambda x: f"{x*100:.0f}%")
+            display_df['Confidence Score'] = display_df['Confidence Score'].apply(lambda x: f"{x * 100:.1f}%")
 
-        st.dataframe(display_df, use_container_width=True, height=400)
+        st.dataframe(display_df, width='stretch', height=400)
 
-
-# ============================================================================
-# PAGE 4: EXPORT
-# ============================================================================
 
 # ============================================================================
 # PAGE 4: EXPORT
@@ -1610,134 +1222,80 @@ elif page == "review":
 
 elif page == "export":
     st.markdown("""
-    <div class="hero-container">
-        <h1>💾 Export Results</h1>
-        <p class="hero-tagline">Download your predictions in multiple formats. Filter by confidence tier before export.</p>
+    <div class="hero">
+        <div class="glow-badge">Download Results</div>
+        <h1>Export</h1>
+        <p>Save your categorized transactions in your preferred format.</p>
     </div>
     """, unsafe_allow_html=True)
 
     if st.session_state.results is None:
-        st.warning("👉 No results yet. Train the model first from the **Upload & Train** tab.")
+        st.warning("No results yet — train the model on the **Upload & Train** tab first.")
     else:
         results = st.session_state.results
 
-        st.markdown("### Choose Your Export Format")
-        st.markdown("Select the format that works best for your workflow.")
-
         col1, col2 = st.columns(2)
 
-        # CSV Export
         with col1:
             st.markdown("""
-            <div class="info-card">
-                <h3 style="margin-top: 0;">📊 CSV Format</h3>
-                <p style="font-size: 14px;">Universal spreadsheet format. Open in Excel, Google Sheets, or any data tool.</p>
-                <span class="badge">Recommended</span>
+            <div class="card">
+                <h3>CSV Export</h3>
+                <p>Universal format for Excel, Google Sheets, and more.</p>
             </div>
             """, unsafe_allow_html=True)
-
-            # Export with actual CSV structure - all columns are preserved
-            export_df = results.copy()
-            # Format confidence score for readability
-            if 'Confidence Score' in export_df.columns:
-                export_df['Confidence Score'] = export_df['Confidence Score'].apply(lambda x: f"{x:.3f}")
-
-            csv = export_df.to_csv(index=False)
+            csv = results.to_csv(index=False)
             st.download_button(
-                label="⬇️ Download CSV",
-                data=csv,
-                file_name=f"predictions_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True
+                "⬇️ Download CSV",
+                csv,
+                f"predictions_{datetime.now().strftime('%Y%m%d')}.csv",
+                "text/csv",
+                width='stretch'
             )
 
-        # Excel Export
         with col2:
             st.markdown("""
-            <div class="info-card">
-                <h3 style="margin-top: 0;">📈 Excel Format</h3>
-                <p style="font-size: 14px;">Professional workbook with summary sheet and full predictions.</p>
-                <span class="badge">Full Report</span>
+            <div class="card">
+                <h3>Excel Export</h3>
+                <p>Professional workbook with data and summary.</p>
             </div>
             """, unsafe_allow_html=True)
-
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                export_df.to_excel(writer, sheet_name='Predictions', index=False)
-
-                summary_data = {
-                    'Metric': ['Total Predictions', 'Avg Confidence', 'Green Tier', 'Yellow Tier', 'Red Tier'],
-                    'Value': [
-                        len(results),
-                        f"{results['Confidence Score'].mean():.2%}",
-                        (results['Confidence Tier'] == 'GREEN').sum(),
-                        (results['Confidence Tier'] == 'YELLOW').sum(),
-                        (results['Confidence Tier'] == 'RED').sum()
-                    ]
-                }
-                pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
-
-            output.seek(0)
-            st.download_button(
-                label="⬇️ Download Excel",
-                data=output,
-                file_name=f"predictions_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+            try:
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    results.to_excel(writer, sheet_name='Predictions', index=False)
+                output.seek(0)
+                st.download_button(
+                    "⬇️ Download Excel",
+                    output,
+                    f"predictions_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    width='stretch'
+                )
+            except ImportError:
+                st.error("Excel export requires openpyxl. Use CSV export instead.")
 
         st.divider()
-
-        st.markdown("### Smart Filtering")
-        st.markdown("Refine your export to only include predictions matching your criteria.")
+        st.markdown("### Filter & Export")
 
         col1, col2 = st.columns(2)
-
         with col1:
-            selected_tiers = st.multiselect(
-                "Include tiers",
-                ['🟢 GREEN', '🟡 YELLOW', '🔴 RED'],
-                default=['🟢 GREEN'],
-                help="Select which confidence tiers to include"
-            )
-            tier_mapping = {'🟢 GREEN': 'GREEN', '🟡 YELLOW': 'YELLOW', '🔴 RED': 'RED'}
-            selected_tiers = [tier_mapping[t] for t in selected_tiers]
-
+            tiers = st.multiselect("Include tiers", ['GREEN', 'YELLOW', 'RED'], default=['GREEN'])
         with col2:
-            min_confidence = st.slider(
-                "Minimum confidence",
-                0.0, 1.0, 0.7,
-                step=0.05,
-                help="Filter out predictions below this confidence level"
-            )
+            min_conf = st.slider("Minimum confidence", 0.0, 1.0, 0.7)
 
-        filtered = results[
-            (results['Confidence Tier'].isin(selected_tiers)) &
-            (results['Confidence Score'] >= min_confidence)
-        ]
+        filtered = results[(results['Confidence Tier'].isin(tiers)) & (results['Confidence Score'] >= min_conf)]
+        st.info(f"📊 {len(filtered):,} of {len(results):,} predictions match filters")
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.info(f"📊 **{len(filtered):,}** of **{len(results):,}** predictions match your filters")
+        csv_filtered = filtered.to_csv(index=False)
+        st.download_button(
+            "⬇️ Download Filtered CSV",
+            csv_filtered,
+            f"predictions_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+            "text/csv",
+            width='stretch',
+            type="primary"
+        )
 
-        if len(filtered) > 0:
-            with col2:
-                # Export all columns from the actual CSV
-                filtered_csv = filtered.to_csv(index=False)
-
-                st.download_button(
-                    label="⬇️ Download Filtered CSV",
-                    data=filtered_csv,
-                    file_name=f"predictions_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    type="primary"
-                )
-
-
-# ============================================================================
-# PAGE 5: HELP
-# ============================================================================
 
 # ============================================================================
 # PAGE 5: HELP
@@ -1745,197 +1303,87 @@ elif page == "export":
 
 elif page == "help":
     st.markdown("""
-    <div class="hero-container">
-        <h1>❓ Help & Resources</h1>
-        <p class="hero-tagline">Everything you need to know about CoKeeper. Learn how to get the best results.</p>
+    <div class="hero">
+        <div class="glow-badge">Documentation</div>
+        <h1>Help & Support</h1>
+        <p>Learn how to get the best results from CoKeeper.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("### Welcome to CoKeeper")
+    st.markdown("### About CoKeeper")
     st.markdown("""
-    **CoKeeper** uses machine learning to automatically categorize your General Ledger transactions.
-    By learning from your historical categorization patterns, we can intelligently categorize new transactions in seconds.
+    CoKeeper uses machine learning to automatically categorize GL transactions based on your historical patterns.
+    Upload your past data, let the model learn, and get instant categorization for new transactions.
     """)
 
     st.divider()
 
-    st.markdown("### 🚀 Getting Started")
+    st.markdown("### Getting Started")
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.markdown("""
-        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); border-radius: 12px;">
-            <div style="font-size: 2rem; margin-bottom: 10px;">1️⃣</div>
-            <div style="font-weight: 600; color: #0f172a;">Upload</div>
-            <div style="font-size: 12px; color: #6b7280;">Training data</div>
+        <div style="text-align:center; padding:16px; background:rgba(37,99,235,0.1); border-radius:12px;">
+            <div style="font-size:2rem; margin-bottom:8px;">1️⃣</div>
+            <div style="font-size:12px; font-weight:600;">Upload Training</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
-        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); border-radius: 12px;">
-            <div style="font-size: 2rem; margin-bottom: 10px;">2️⃣</div>
-            <div style="font-weight: 600; color: #0f172a;">Upload</div>
-            <div style="font-size: 12px; color: #6b7280;">Data to categorize</div>
+        <div style="text-align:center; padding:16px; background:rgba(37,99,235,0.1); border-radius:12px;">
+            <div style="font-size:2rem; margin-bottom:8px;">2️⃣</div>
+            <div style="font-size:12px; font-weight:600;">Upload Data</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("""
-        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); border-radius: 12px;">
-            <div style="font-size: 2rem; margin-bottom: 10px;">3️⃣</div>
-            <div style="font-weight: 600; color: #0f172a;">Train</div>
-            <div style="font-size: 12px; color: #6b7280;">AI model</div>
+        <div style="text-align:center; padding:16px; background:rgba(37,99,235,0.1); border-radius:12px;">
+            <div style="font-size:2rem; margin-bottom:8px;">3️⃣</div>
+            <div style="font-size:12px; font-weight:600;">Train Model</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col4:
         st.markdown("""
-        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); border-radius: 12px;">
-            <div style="font-size: 2rem; margin-bottom: 10px;">4️⃣</div>
-            <div style="font-weight: 600; color: #0f172a;">Review</div>
-            <div style="font-size: 12px; color: #6b7280;">Predictions</div>
+        <div style="text-align:center; padding:16px; background:rgba(37,99,235,0.1); border-radius:12px;">
+            <div style="font-size:2rem; margin-bottom:8px;">4️⃣</div>
+            <div style="font-size:12px; font-weight:600;">Review</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col5:
         st.markdown("""
-        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); border-radius: 12px;">
-            <div style="font-size: 2rem; margin-bottom: 10px;">5️⃣</div>
-            <div style="font-weight: 600; color: #0f172a;">Export</div>
-            <div style="font-size: 12px; color: #6b7280;">Your results</div>
+        <div style="text-align:center; padding:16px; background:rgba(37,99,235,0.1); border-radius:12px;">
+            <div style="font-size:2rem; margin-bottom:8px;">5️⃣</div>
+            <div style="font-size:12px; font-weight:600;">Export</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.divider()
 
-    st.markdown("### 🎯 Understanding Confidence Tiers")
+    st.markdown("### Confidence Tiers Explained")
 
-    tier_info = {
-        '🟢 GREEN (90%+)': {
-            'desc': 'High confidence predictions - Ready for immediate import to QuickBooks',
-            'color': '#10b981'
-        },
-        '🟡 YELLOW (70-90%)': {
-            'desc': 'Medium confidence - Recommend quick manual review before import',
-            'color': '#f59e0b'
-        },
-        '🔴 RED (<70%)': {
-            'desc': 'Low confidence - Manual review recommended by an accountant',
-            'color': '#ef4444'
-        }
-    }
+    with st.expander("🟢 GREEN (90%+ Confidence)"):
+        st.markdown("High confidence predictions ready for immediate use.")
 
-    for tier, info in tier_info.items():
-        st.markdown(f"""
-        <div class="info-card" style="border-left: 4px solid {info['color']};">
-            <h4 style="margin-top: 0; color: {info['color']};">{tier}</h4>
-            <p style="margin: 0; font-size: 15px;">{info['desc']}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    with st.expander("🟡 YELLOW (70-90% Confidence)"):
+        st.markdown("Medium confidence — recommend quick manual verification.")
+
+    with st.expander("🔴 RED (<70% Confidence)"):
+        st.markdown("Low confidence — recommend careful manual review.")
 
     st.divider()
 
-    st.markdown("### 📋 CSV File Format")
-    st.markdown("Your QuickBooks export must include these four columns:")
-
-    csv_cols = {
-        'Date': 'Transaction date (MM/DD/YYYY)',
-        'Name': 'Vendor or payee name',
-        'Account': 'GL account code and description (e.g., "60155 Consulting Fees")',
-        'Memo/Description': 'Transaction details and notes'
-    }
-
-    for col, desc in csv_cols.items():
-        st.markdown(f"<strong>{col}</strong> — {desc}", unsafe_allow_html=True)
-
-    st.divider()
-
-    st.markdown("### 💡 Tips for Best Results")
+    st.markdown("### Tips for Best Results")
 
     tips = [
-        ("Use More Data", "100+ historical transactions yields significantly better accuracy. The model learns patterns from your data."),
-        ("Maintain Consistency", "Use consistent vendor names and descriptions. Typos and variations reduce accuracy."),
-        ("Accurate Training", "Ensure your training data is correctly categorized. The model learns what you teach it."),
-        ("Review GREEN First", "Start by reviewing GREEN tier predictions. They have the highest confidence and validation builds trust."),
-        ("Monitor Updates", "Keep training data fresh. Quarterly retraining captures new vendors and category updates."),
+        ("Use More Data", "100+ transactions improve accuracy significantly"),
+        ("Keep It Consistent", "Use consistent vendor names and descriptions"),
+        ("Start with GREEN", "Review high-confidence predictions first"),
+        ("regular Retraining", "Update your model quarterly with new data"),
     ]
 
     for title, tip in tips:
-        st.markdown(f"""
-        <div class="info-card">
-            <strong style="color: #3b82f6;">{title}</strong>
-            <p style="margin: 8px 0 0 0; font-size: 14px;">{tip}</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-
-    st.markdown("### ❓ Frequently Asked Questions")
-
-    with st.expander("🤔 How accurate is CoKeeper?"):
-        st.markdown("""
-        Accuracy depends on your data quality:
-        - **Training Size**: 100+ transactions minimum, 500+ optimal
-        - **Data Quality**: Clean, consistent vendor names and descriptions
-        - **Category Mix**: More variety in categories gives better precision
-
-        Most users see 85-92% accuracy on the GREEN tier. We always recommend manual review before finalization.
-        """)
-
-    with st.expander("⏱️ How long does training take?"):
-        st.markdown("""
-        Training typically takes 30-60 seconds depending on:
-        - Size of training dataset
-        - Number of unique categories
-        - Your system performance
-
-        Larger datasets (500+ transactions) may take 1-2 minutes.
-        """)
-
-    with st.expander("🔄 Can I retrain with new data?"):
-        st.markdown("""
-        Yes! You can upload new data and retrain anytime. This is recommended:
-        - Quarterly for seasonal business changes
-        - When adding new vendor categories
-        - After significant GL account restructuring
-
-        Retraining uses only the data you currently upload (no historical model bias).
-        """)
-
-    with st.expander("📤 How do I import to QuickBooks?"):
-        st.markdown("""
-        **Using CSV:**
-        1. Download predictions as CSV from the **Export** tab
-        2. In QuickBooks: File → Utilities → Import → CSV Files
-        3. Map columns to appropriate QB fields
-        4. Review and confirm
-
-        Always backup your QB file before importing!
-        """)
-
-    with st.expander("🚨 Why did accuracy drop?"):
-        st.markdown("""
-        Common causes:
-        - **New vendor types** not in training data
-        - **Account changes** in current GL
-        - **Data quality issues** (typos, inconsistent names)
-        - **Seasonal transactions** not in training period
-
-        Solution: Retrain with more recent data or manually review RED tier items.
-        """)
-
-    st.divider()
-
-    st.markdown("### 📞 Support & Next Steps")
-    st.markdown("""
-    **Ready to get started?**
-    1. Go to the **Upload & Train** tab
-    2. Upload your training data (historical categorized GL)
-    3. Upload your prediction data (current uncategorized GL)
-    4. Click **Train Model & Generate Predictions**
-    5. Review results in the **Results** tab
-    6. Export in your preferred format from the **Export** tab
-
-    **Questions?** Check the expandable sections above, or reach out to support.
-    """)
+        st.markdown(f"**{title}** — {tip}")

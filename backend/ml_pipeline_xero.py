@@ -43,7 +43,10 @@ class MLPipelineXero:
             model_path: Optional path to load pre-trained model
         """
         self.model = None
-        self.tfidf_vectorizer = None
+        # Triple TF-IDF vectorizers (matching QB pipeline architecture)
+        self.tfidf_word = None       # Word-level TF-IDF (1-2 grams)
+        self.tfidf_char = None       # Character-level TF-IDF (3-5 grams)
+        self.tfidf_trigram = None    # Word trigrams (2-3 grams)
         self.vendor_intelligence = None
         self.feature_selector = None
         self.confidence_calibrator = ConfidenceCalibrator()
@@ -274,26 +277,71 @@ class MLPipelineXero:
             train, temp = train_test_split(training_data, test_size=0.30, random_state=42)
             val, test = train_test_split(temp, test_size=0.50, random_state=42)
 
-        # Step 7: Build TF-IDF features
-        self.tfidf_vectorizer = TfidfVectorizer(
-            max_features=1000,
+        # Step 7: Build Triple TF-IDF features (word + char + trigram)
+        logger.info("Extracting Triple TF-IDF features...")
+
+        # Layer 1: Word-level TF-IDF (1-2 grams)
+        self.tfidf_word = TfidfVectorizer(
+            max_features=500,
             ngram_range=(1, 2),
-            min_df=1,
+            min_df=2,
             stop_words='english'
         )
+        train_tfidf_word = self.tfidf_word.fit_transform(train['description'].fillna(''))
+        val_tfidf_word = self.tfidf_word.transform(val['description'].fillna(''))
+        test_tfidf_word = self.tfidf_word.transform(test['description'].fillna(''))
 
-        train_tfidf = self.tfidf_vectorizer.fit_transform(train['description'].fillna(''))
-        val_tfidf = self.tfidf_vectorizer.transform(val['description'].fillna(''))
-        test_tfidf = self.tfidf_vectorizer.transform(test['description'].fillna(''))
+        train_features = pd.DataFrame(train_tfidf_word.toarray())
+        val_features = pd.DataFrame(val_tfidf_word.toarray())
+        test_features = pd.DataFrame(test_tfidf_word.toarray())
 
-        # Convert to DataFrames and add amount (ensure numeric arrays)
-        train_features = pd.DataFrame(train_tfidf.toarray())
-        val_features = pd.DataFrame(val_tfidf.toarray())
-        test_features = pd.DataFrame(test_tfidf.toarray())
-
+        # Add amount feature
         train_features['amount_log'] = np.log1p(np.array(train['amount'].values, dtype=np.float64))
         val_features['amount_log'] = np.log1p(np.array(val['amount'].values, dtype=np.float64))
         test_features['amount_log'] = np.log1p(np.array(test['amount'].values, dtype=np.float64))
+
+        # Layer 2: Character-level TF-IDF (3-5 grams)
+        self.tfidf_char = TfidfVectorizer(
+            max_features=200,
+            analyzer='char',
+            ngram_range=(3, 5),
+            min_df=2,
+            max_df=0.8
+        )
+        train_tfidf_char = self.tfidf_char.fit_transform(train['description'].fillna(''))
+        val_tfidf_char = self.tfidf_char.transform(val['description'].fillna(''))
+        test_tfidf_char = self.tfidf_char.transform(test['description'].fillna(''))
+
+        train_char_features = pd.DataFrame(train_tfidf_char.toarray())
+        val_char_features = pd.DataFrame(val_tfidf_char.toarray())
+        test_char_features = pd.DataFrame(test_tfidf_char.toarray())
+
+        train_features = pd.concat([train_features, train_char_features], axis=1)
+        val_features = pd.concat([val_features, val_char_features], axis=1)
+        test_features = pd.concat([test_features, test_char_features], axis=1)
+
+        # Layer 3: Word trigrams (2-3 grams)
+        self.tfidf_trigram = TfidfVectorizer(
+            max_features=150,
+            analyzer='word',
+            ngram_range=(2, 3),
+            min_df=2,
+            max_df=0.8,
+            stop_words=None
+        )
+        train_tfidf_trigram = self.tfidf_trigram.fit_transform(train['description'].fillna(''))
+        val_tfidf_trigram = self.tfidf_trigram.transform(val['description'].fillna(''))
+        test_tfidf_trigram = self.tfidf_trigram.transform(test['description'].fillna(''))
+
+        train_trigram_features = pd.DataFrame(train_tfidf_trigram.toarray())
+        val_trigram_features = pd.DataFrame(val_tfidf_trigram.toarray())
+        test_trigram_features = pd.DataFrame(test_tfidf_trigram.toarray())
+
+        train_features = pd.concat([train_features, train_trigram_features], axis=1)
+        val_features = pd.concat([val_features, val_trigram_features], axis=1)
+        test_features = pd.concat([test_features, test_trigram_features], axis=1)
+
+        logger.info(f"Triple TF-IDF features extracted: {train_features.shape[1]} total (word: 501, char: 200, trigram: 150)")
 
         # Step 8: Train Vendor Intelligence
         self.vendor_intelligence = VendorIntelligence(
@@ -453,13 +501,24 @@ class MLPipelineXero:
         df['Credit'] = pd.to_numeric(df['Credit'], errors='coerce').fillna(0)
         df['amount'] = df['Debit'] + df['Credit']
 
-        # Step 2: Extract TF-IDF features
-        tfidf_features = self.tfidf_vectorizer.transform(df['description'].fillna(''))
-        features_df = pd.DataFrame(tfidf_features.toarray())
+        # Step 2: Extract Triple TF-IDF features (word + char + trigram)
+        # Layer 1: Word-level TF-IDF
+        tfidf_word = self.tfidf_word.transform(df['description'].fillna(''))
+        features_df = pd.DataFrame(tfidf_word.toarray())
 
-        # Ensure amount is a numpy array and apply log1p
+        # Add amount feature
         amount_array = np.array(df['amount'].values, dtype=np.float64)
         features_df['amount_log'] = np.log1p(amount_array)
+
+        # Layer 2: Character-level TF-IDF
+        tfidf_char = self.tfidf_char.transform(df['description'].fillna(''))
+        char_features = pd.DataFrame(tfidf_char.toarray())
+        features_df = pd.concat([features_df, char_features], axis=1)
+
+        # Layer 3: Word trigrams
+        tfidf_trigram = self.tfidf_trigram.transform(df['description'].fillna(''))
+        trigram_features = pd.DataFrame(tfidf_trigram.toarray())
+        features_df = pd.concat([features_df, trigram_features], axis=1)
 
         # Step 3: Apply VI features
         vi_features = self._apply_vi(df)
@@ -496,9 +555,10 @@ class MLPipelineXero:
                 elif isinstance(value, (np.integer, np.floating)):
                     result_dict[key] = float(value)
 
-            # Put prediction in the Account and Account Code columns
-            result_dict['Account'] = pred
-            result_dict['Account Code'] = self.account_name_to_code.get(pred, '')
+            # Put prediction in new columns to distinguish from original data
+            # Use "Related account (New)" to match Xero's original "Related account" column
+            result_dict['Related account (New)'] = pred
+            result_dict['Account Code (New)'] = self.account_name_to_code.get(pred, '')
 
             # Get predicted category index for calibration
             pred_idx = np.where(self.model.classes_ == pred)[0][0]
@@ -547,7 +607,9 @@ class MLPipelineXero:
 
         model_data = {
             "model": self.model,
-            "tfidf_vectorizer": self.tfidf_vectorizer,
+            "tfidf_word": self.tfidf_word,
+            "tfidf_char": self.tfidf_char,
+            "tfidf_trigram": self.tfidf_trigram,
             "vendor_intelligence": self.vendor_intelligence,
             "feature_selector": self.feature_selector,
             "confidence_calibrator": self.confidence_calibrator,
@@ -571,7 +633,10 @@ class MLPipelineXero:
             model_data = pickle.load(f)
 
         self.model = model_data["model"]
-        self.tfidf_vectorizer = model_data["tfidf_vectorizer"]
+        # Load triple TF-IDF vectorizers (backward compatible with old models)
+        self.tfidf_word = model_data.get("tfidf_word", model_data.get("tfidf_vectorizer"))
+        self.tfidf_char = model_data.get("tfidf_char")
+        self.tfidf_trigram = model_data.get("tfidf_trigram")
         self.vendor_intelligence = model_data["vendor_intelligence"]
         self.feature_selector = model_data.get("feature_selector")
         self.confidence_calibrator = model_data.get("confidence_calibrator", ConfidenceCalibrator())

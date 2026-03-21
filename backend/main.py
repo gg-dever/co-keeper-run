@@ -8,11 +8,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import pandas as pd
 import io
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
+import traceback
 
-from ml_pipeline_qb import QuickBooksPipeline as MLPipeline
-from ml_pipeline_xero import MLPipelineXero
+# Try to import ML pipelines, but don't fail if they're not available
+try:
+    from ml_pipeline_qb import QuickBooksPipeline as MLPipeline
+    ML_QB_AVAILABLE = True
+except Exception as e:
+    logging.warning(f"QuickBooks ML Pipeline not available: {e}")
+    MLPipeline = None
+    ML_QB_AVAILABLE = False
+
+try:
+    from ml_pipeline_xero import MLPipelineXero
+    ML_XERO_AVAILABLE = True
+except Exception as e:
+    logging.warning(f"Xero ML Pipeline not available: {e}")
+    MLPipelineXero = None
+    ML_XERO_AVAILABLE = False
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +49,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize ML pipelines
-ml_pipeline = MLPipeline()  # QuickBooks pipeline
-ml_pipeline_xero = MLPipelineXero()  # Xero pipeline
+# Lazy initialization of ML pipelines
+ml_pipeline: Optional[Any] = None
+ml_pipeline_xero: Optional[Any] = None
+
+
+def get_qb_pipeline():
+    """Lazy initialize QuickBooks pipeline"""
+    global ml_pipeline
+    if not ML_QB_AVAILABLE:
+        raise HTTPException(status_code=503, detail="QuickBooks ML pipeline is not available")
+    if ml_pipeline is None:
+        ml_pipeline = MLPipeline()
+    return ml_pipeline
+
+
+def get_xero_pipeline():
+    """Lazy initialize Xero pipeline"""
+    global ml_pipeline_xero
+    if not ML_XERO_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Xero ML pipeline is not available")
+    if ml_pipeline_xero is None:
+        ml_pipeline_xero = MLPipelineXero()
+    return ml_pipeline_xero
 
 
 @app.get("/")
@@ -75,7 +110,7 @@ async def train_model(file: UploadFile = File(...)) -> Dict[str, Any]:
         logger.info(f"Received training file: {file.filename} with {len(df)} rows")
 
         # Train the Naive Bayes model
-        result = ml_pipeline.train(df)
+        result = get_qb_pipeline().train(df)
 
         logger.info(f"Training completed: {result['test_accuracy']:.1f}% test accuracy")
 
@@ -112,14 +147,14 @@ async def predict_transactions(file: UploadFile = File(...)) -> Dict[str, Any]:
         logger.info(f"Received prediction file: {file.filename} with {len(df)} rows")
 
         # Check if model is loaded
-        if not ml_pipeline.is_model_loaded():
+        if not get_qb_pipeline().is_model_loaded():
             raise HTTPException(
                 status_code=400,
                 detail="No trained model loaded. Please train a model first using the /train endpoint."
             )
 
         # Make predictions using the trained model
-        predictions = ml_pipeline.predict(df)
+        predictions = get_qb_pipeline().predict(df)
 
         # Calculate confidence distribution
         high_count = sum(1 for p in predictions if p["Confidence Tier"] == "GREEN")
@@ -168,12 +203,12 @@ async def train_xero_model(file: UploadFile = File(...)) -> Dict[str, Any]:
 
         # Read uploaded file - parse dynamically to find headers
         contents = await file.read()
-        df = ml_pipeline_xero._parse_xero_csv(io.BytesIO(contents))
+        df = get_xero_pipeline()._parse_xero_csv(io.BytesIO(contents))
 
         logger.info(f"Received Xero training file: {file.filename} with {len(df)} rows")
 
         # Train the Naive Bayes model
-        result = ml_pipeline_xero.train(df)
+        result = get_xero_pipeline().train(df)
 
         logger.info(f"Xero training completed: {result['test_accuracy']:.1f}% test accuracy")
 
@@ -205,19 +240,19 @@ async def predict_xero_transactions(file: UploadFile = File(...)) -> Dict[str, A
 
         # Read uploaded file - parse dynamically to find headers
         contents = await file.read()
-        df = ml_pipeline_xero._parse_xero_csv(io.BytesIO(contents))
+        df = get_xero_pipeline()._parse_xero_csv(io.BytesIO(contents))
 
         logger.info(f"Received Xero prediction file: {file.filename} with {len(df)} rows")
 
         # Check if model is loaded
-        if not ml_pipeline_xero.is_model_loaded():
+        if not get_xero_pipeline().is_model_loaded():
             raise HTTPException(
                 status_code=400,
                 detail="No trained Xero model loaded. Please train a model first using the /train_xero endpoint."
             )
 
         # Make predictions using the trained model
-        predictions = ml_pipeline_xero.predict(df)
+        predictions = get_xero_pipeline().predict(df)
 
         # Calculate confidence distribution
         high_count = sum(1 for p in predictions if p["Confidence Tier"] == "GREEN")
@@ -250,10 +285,22 @@ async def predict_xero_transactions(file: UploadFile = File(...)) -> Dict[str, A
 @app.get("/health")
 async def health_check():
     """Detailed health check for deployment monitoring"""
+    try:
+        qb_loaded = get_qb_pipeline().is_model_loaded() if (ML_QB_AVAILABLE and ml_pipeline) else False
+    except Exception:
+        qb_loaded = False
+
+    try:
+        xero_loaded = get_xero_pipeline().is_model_loaded() if (ML_XERO_AVAILABLE and ml_pipeline_xero) else False
+    except Exception:
+        xero_loaded = False
+
     return {
         "status": "healthy",
-        "qb_model_loaded": ml_pipeline.is_model_loaded(),
-        "xero_model_loaded": ml_pipeline_xero.is_model_loaded(),
+        "ml_qb_available": ML_QB_AVAILABLE,
+        "ml_xero_available": ML_XERO_AVAILABLE,
+        "qb_model_loaded": qb_loaded,
+        "xero_model_loaded": xero_loaded,
         "api_version": "1.0.0"
     }
 
