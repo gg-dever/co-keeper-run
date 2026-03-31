@@ -1,36 +1,33 @@
-# Frontend Dockerfile for CoKeeper Streamlit Application
-FROM python:3.11-slim
+# Frontend Dockerfile
+FROM python:3.12-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install dependencies
+# Copy and install requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy all code
 COPY . .
 
-# Expose port
+# Configure Streamlit
+RUN mkdir -p /root/.streamlit && \
+    echo "[server]" > /root/.streamlit/config.toml && \
+    echo "headless = true" >> /root/.streamlit/config.toml && \
+    echo "port = 8501" >> /root/.streamlit/config.toml && \
+    echo "enableCORS = false" >> /root/.streamlit/config.toml && \
+    echo "enableXsrfProtection = false" >> /root/.streamlit/config.toml
+
+# Set environment
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 8501
 
-# Create .streamlit directory and config
-RUN mkdir -p ~/.streamlit && \
-    echo "[server]" > ~/.streamlit/config.toml && \
-    echo "headless = true" >> ~/.streamlit/config.toml && \
-    echo "port = 8501" >> ~/.streamlit/config.toml && \
-    echo "enableCORS = false" >> ~/.streamlit/config.toml && \
-    echo "enableXsrfProtection = false" >> ~/.streamlit/config.toml
-
-# Health check
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
-
-# Run Streamlit
+# Start app
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]

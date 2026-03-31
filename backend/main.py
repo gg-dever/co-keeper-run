@@ -9,9 +9,13 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 import io
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 import traceback
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # LAZY LOAD ML pipelines on first use (not on import)
 # This prevents slow imports from blocking the FastAPI app startup
@@ -319,12 +323,189 @@ async def predict_xero_transactions(file: UploadFile = File(...)) -> Dict[str, A
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
+# === NEW: QuickBooks OAuth and Integration Endpoints ===
+from datetime import datetime
+
+qb_sessions = {}
+
+
+@app.get("/api/quickbooks/connect")
+async def quickbooks_connect():
+    """Step 1: Initiate QuickBooks OAuth flow."""
+    try:
+        from services.quickbooks_connector import QuickBooksConnector
+        connector = QuickBooksConnector()
+        auth_url = connector.get_authorization_url()
+        return {
+            "auth_url": auth_url,
+            "message": "Redirect user to this URL to grant QuickBooks access"
+        }
+    except Exception as e:
+        logger.error(f"QB OAuth init error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/quickbooks/callback")
+async def quickbooks_callback(code: str, realmId: str, state: Optional[str] = None):
+    """Step 2: OAuth callback endpoint after user approves."""
+    try:
+        from services.quickbooks_connector import QuickBooksConnector
+        import uuid
+
+        connector = QuickBooksConnector()
+        tokens = connector.exchange_code_for_tokens(code, realmId)
+
+        session_id = str(uuid.uuid4())
+        qb_sessions[session_id] = {
+            "tokens": tokens,
+            "connector": connector,
+            "created_at": datetime.now().isoformat()
+        }
+
+        return {
+            "session_id": session_id,
+            "realm_id": realmId,
+            "message": "Successfully connected to QuickBooks"
+        }
+    except Exception as e:
+        logger.error(f"QB callback error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/quickbooks/transactions")
+async def get_quickbooks_transactions(
+    session_id: str,
+    start_date: str,
+    end_date: str,
+    txn_type: str = "Purchase"
+):
+    """Step 3: Fetch transactions from QuickBooks."""
+    try:
+        if session_id not in qb_sessions:
+            raise HTTPException(status_code=401, detail="Invalid session")
+
+        session = qb_sessions[session_id]
+        connector = session["connector"]
+
+        if connector.is_token_expired():
+            tokens = connector.refresh_access_token(session["tokens"]["refresh_token"])
+            session["tokens"] = tokens
+
+        transactions = connector.query_transactions(
+            start_date=start_date,
+            end_date=end_date,
+            txn_type=txn_type
+        )
+
+        session["qb_transactions"] = transactions
+
+        return {
+            "transactions": transactions,
+            "count": len(transactions),
+            "date_range": f"{start_date} to {end_date}"
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch QB transactions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/quickbooks/match")
+async def match_predictions_to_quickbooks(
+    session_id: str,
+    predictions: List[Dict]
+):
+    """Step 4: Match CoKeeper predictions to QB transactions."""
+    try:
+        if session_id not in qb_sessions:
+            raise HTTPException(status_code=401, detail="Invalid session")
+
+        from services.transaction_matcher import TransactionMatcher
+
+        session = qb_sessions[session_id]
+
+        if "qb_transactions" not in session:
+            raise HTTPException(status_code=400, detail="Must fetch transactions first")
+
+        matcher = TransactionMatcher(similarity_threshold=80)
+        result = matcher.match_transactions(session["qb_transactions"], predictions)
+
+        session["matched"] = result["matched"]
+
+        return {
+            "matched_count": result["stats"]["matched_count"],
+            "match_rate": result["stats"]["match_rate"],
+            "matched_transactions": result["matched"],
+            "unmatched_qb_count": result["stats"]["unmatched_qb_count"],
+            "stats": result["stats"]
+        }
+    except Exception as e:
+        logger.error(f"Failed to match transactions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/quickbooks/update")
+async def update_quickbooks_transactions(
+    session_id: str,
+    matched_transactions: List[Dict] = None,
+    confidence_threshold: str = "GREEN",
+    dry_run: bool = True
+):
+    """Step 5: Update QB transactions. DANGER: modifies financial data."""
+    try:
+        if session_id not in qb_sessions:
+            raise HTTPException(status_code=401, detail="Invalid session")
+
+        from services.batch_updater import BatchUpdater
+
+        session = qb_sessions[session_id]
+        connector = session["connector"]
+
+        if matched_transactions is None:
+            if "matched" not in session:
+                raise HTTPException(status_code=400, detail="Must match first")
+            matched_transactions = session["matched"]
+
+        updater = BatchUpdater(connector)
+        result = updater.update_batch(
+            matched_transactions=matched_transactions,
+            confidence_threshold=confidence_threshold,
+            dry_run=dry_run
+        )
+
+        session["last_update"] = result
+        return result
+    except Exception as e:
+        logger.error(f"QB update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/quickbooks/status")
+async def quickbooks_status(session_id: str):
+    """Check QuickBooks connection status."""
+    try:
+        if session_id not in qb_sessions:
+            return {"connected": False, "message": "Session not found"}
+
+        session = qb_sessions[session_id]
+        connector = session["connector"]
+
+        return {
+            "connected": True,
+            "realm_id": connector.realm_id,
+            "session_created": session["created_at"],
+            "token_expired": connector.is_token_expired(),
+            "message": "QuickBooks connection is active"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health_check():
     """Detailed health check for deployment monitoring"""
     qb_loaded = False
     xero_loaded = False
-    
+
     try:
         if ML_QB_AVAILABLE and ml_pipeline:
             qb_loaded = ml_pipeline.is_model_loaded()

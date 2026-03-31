@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/Users/gagepiercegaubert/Desktop/career_projects/co-keeper-run/test_local_tiers.py", line 15, in <module>
+    from confidence_calibration import ConfidenceCalibrator
+  File "/Users/gagepiercegaubert/Desktop/career_projects/co-keeper-run/backend/confidence_calibration.py", line 8, in <module>
+    import pandas as pd
+ModuleNotFoundError: No module named 'pandas'

@@ -437,18 +437,18 @@ class QuickBooksPipeline:
         # Initialize confidence calibrator and fit on validation data
         from confidence_calibration import ConfidenceCalibrator
         self.confidence_calibrator = ConfidenceCalibrator()
-        
+
         # Get validation probabilities for calibration
         val_proba = self.model.predict_proba(val_final)
-        
+
         # Convert string labels to indices for the calibrator
         unique_categories = np.array(sorted(set(val_labels)))
         val_labels_idx = np.array([np.where(unique_categories == label)[0][0] for label in val_labels])
         val_pred_idx = np.array([np.where(unique_categories == label)[0][0] for label in val_pred])
-        
+
         # Fit calibrator on validation data
         self.confidence_calibrator.fit(val_pred_idx, val_labels_idx, val_proba)
-        
+
         # Learn vendor history from training data
         if 'vendor_name' in train.columns and 'category_true' in train.columns:
             self.confidence_calibrator.fit_vendor_history(train, 'vendor_name', 'category_true')
@@ -566,21 +566,21 @@ class QuickBooksPipeline:
             else:
                 pred = ml_predictions[idx]
                 final_predictions.append(pred)
-                
+
                 # Apply calibration to ML predictions
                 pred_prob = ml_probabilities[idx]
-                
+
                 # Get predicted category index for calibrator
                 try:
                     pred_idx = int(np.where(self.model.classes_ == pred)[0][0]) if hasattr(self.model, 'classes_') else idx
                 except:
                     pred_idx = 0
-                
+
                 # Extract vendor intelligence info for calibration boosts
                 vi_conf = float(vi_features.iloc[idx]['vi_confidence']) if idx < len(vi_features) else 0.0
                 vi_match = int(vi_features.iloc[idx]['has_match']) if idx < len(vi_features) else 0
                 vendor_name = df.iloc[idx].get('vendor_name', '')
-                
+
                 # Calibrate confidence using the calibrator
                 if hasattr(self, 'confidence_calibrator') and self.confidence_calibrator:
                     calibrated_conf, _ = self.confidence_calibrator.calibrate(
@@ -591,7 +591,7 @@ class QuickBooksPipeline:
                 else:
                     # Fallback to raw confidence if calibrator not available
                     final_confidence.append(float(ml_confidence[idx]))
-                
+
                 prediction_source.append('ml')
 
         # Add predictions to DataFrame (use FRONTBACK.md column names)

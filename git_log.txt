@@ -1,0 +1,8 @@
+commit bf7183d0ab7166f954ffb0a32da404de2b3e7c1b
+Author: gg-dever <ggcodedevelopment@gmail.com>
+Date:   Sat Mar 21 16:02:08 2026 +0800
+
+    FIX: Lazy load ML pipelines to prevent import blocking FastAPI startup
+
+ backend/main.py | 71 ++++++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 47 insertions(+), 24 deletions(-)

@@ -21,12 +21,12 @@ Wait for page to load.
 
 ### 2. Train Model (First Time)
 - Click **"Upload"** tab at top
-- Click **"Train"** subtab  
+- Click **"Train"** subtab
 - Choose CSV file with transaction data
 - Click **"Train Model"** button
 - **Wait** for green success message showing accuracy (like "92.5%")
 
-*What happens*: 
+*What happens*:
 - Model trains on your data
 - **Importantly**: Calibrator saves WITH the model to disk
 - Ready for predictions
@@ -57,7 +57,7 @@ Wait for page to load.
 - Look at the **Confidence Distribution** chart
 - **Expected**:
   - GREEN: 40-50% (✅ HIGH - auto-review ready)
-  - YELLOW: 30-35% (✅ MEDIUM - suggest review)  
+  - YELLOW: 30-35% (✅ MEDIUM - suggest review)
   - RED: 20-30% (✅ LOW - requires review)
 
 ### 6. Verify It's Better
@@ -98,14 +98,14 @@ The system is now working correctly. You should see:
 ### Before Fixes
 ```
 INPUT: 1000 transactions
-OUTPUT: 
+OUTPUT:
   RED:    647 (64%)  - Almost everything marked for review
-  YELLOW: 250 (25%)  
+  YELLOW: 250 (25%)
   GREEN:   103 (10%) - Very little auto-approved
 PROBLEM: Unusable - too much manual review needed
 ```
 
-### After Fixes  
+### After Fixes
 ```
 INPUT: 1000 transactions
 OUTPUT:
@@ -125,13 +125,13 @@ BENEFIT: Balanced, actionable, most can auto-approve
    - GREEN ≥ 0.70: High confidence predictions
    - YELLOW ≥ 0.40: Medium confidence, suggest review
    - RED < 0.40: Low confidence, needs review
-   
+
 2. **Model Loading from Disk**
    - Each prediction request loads the TRAINED model
    - Not using empty untrained instance
    - Includes all learned parameters
 
-3. **Calibrator Persistence** 
+3. **Calibrator Persistence**
    - Calibrator learns per-category accuracy during training
    - Saves WITH the model file
    - Loads WITH the model file
@@ -149,15 +149,15 @@ BENEFIT: Balanced, actionable, most can auto-approve
 ## Quality Metrics You Should See
 
 ### Confidence Distribution
-✅ **Good**: RED 20-30%, YELLOW 30-35%, GREEN 40-50%  
+✅ **Good**: RED 20-30%, YELLOW 30-35%, GREEN 40-50%
 ❌ **Bad**: All one tier or heavily skewed
 
-### Confidence Scores  
-✅ **Good**: Range 0.25-0.90 (spread across range)  
+### Confidence Scores
+✅ **Good**: Range 0.25-0.90 (spread across range)
 ❌ **Bad**: All exactly 1.0 or all 0.0 (no variation)
 
 ### Category Accuracy
-✅ **Good**: Same vendors consistently predicted (if they appear in training)  
+✅ **Good**: Same vendors consistently predicted (if they appear in training)
 ❌ **Bad**: Same vendor gets different predictions each time
 
 ---
@@ -165,7 +165,7 @@ BENEFIT: Balanced, actionable, most can auto-approve
 ## Next Steps After This Works
 
 1. Upload real production data
-2. Train on your historical transactions  
+2. Train on your historical transactions
 3. Run predictions on recent transactions
 4. Export results with tiers to Excel
 5. Use to prioritize review work:

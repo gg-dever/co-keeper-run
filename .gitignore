@@ -59,5 +59,14 @@ Thumbs.db
 # Logs
 *.log
 
+# QuickBooks OAuth sessions and temporary files
+backend/sessions/
+oauth_url.txt
+fresh_oauth.txt
+final_oauth.txt
+token_result.txt
+token_result2.txt
+fetch_result.txt
+
 # Google Cloud
 .gcloudignore

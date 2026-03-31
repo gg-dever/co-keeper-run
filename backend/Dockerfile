@@ -1,32 +1,30 @@
-# Backend Dockerfile for CoKeeper FastAPI Application
-FROM python:3.11-slim
+# Backend Dockerfile
+FROM python:3.12-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install dependencies for catboost compilation
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    curl \
+    make \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy and install requirements
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy all code
 COPY . .
 
-# Create models directory if it doesn't exist
+# Create models directory for persistence
 RUN mkdir -p models
 
-# Expose port (Cloud Run will use PORT env variable)
+# Set environment
+ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
+
 EXPOSE 8000
 
-# Run the application with uvicorn
-# Increase timeout for Cloud Run and bind to 0.0.0.0
-CMD exec uvicorn main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 300
+# Start app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
