@@ -181,8 +181,8 @@ curl http://localhost:8000/api/quickbooks/connect
 
 ---
 
-**Status:** Phase 1.5.2B Complete ✅  
-**Next Phase:** 1.5.2C - Integration Testing 🔄  
-**Blocker:** Need test data in QuickBooks Sandbox  
+**Status:** Phase 1.5.2B Complete ✅
+**Next Phase:** 1.5.2C - Integration Testing 🔄
+**Blocker:** Need test data in QuickBooks Sandbox
 
 Last Updated: March 31, 2026 9:15 AM

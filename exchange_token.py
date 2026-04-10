@@ -24,26 +24,26 @@ print("="*80 + "\n")
 
 try:
     qb = QuickBooksConnector()
-    
+
     print(f"📝 Authorization Code: {auth_code[:20]}...")
     print(f"🏢 Realm ID: {realm_id}")
     print("\n⏳ Exchanging code for access token...")
-    
+
     # Exchange authorization code for tokens
     result = qb.exchange_code_for_tokens(auth_code, realm_id)
-    
+
     print("\n✅ SUCCESS! Tokens received and saved.")
     print(f"   Access Token: {result['access_token'][:30]}...")
     print(f"   Refresh Token: {result['refresh_token'][:30]}...")
     print(f"   Expires In: {result['expires_in']} seconds")
     print(f"   Realm ID: {result['realm_id']}")
-    
+
     print("\n" + "="*80)
     print("✅ QUICKBOOKS CONNECTION ESTABLISHED")
     print("="*80 + "\n")
     print("Next: Run integration tests to fetch transactions from QuickBooks")
     print("\n" + "="*80 + "\n")
-    
+
 except Exception as e:
     print(f"\n❌ ERROR: {e}")
     import traceback

@@ -1,0 +1,3 @@
+b029502 feat: Complete QuickBooks OAuth 2.0 integration - Phase 1.5.2B
+bf7183d FIX: Lazy load ML pipelines to prevent import blocking FastAPI startup
+08ed3d3 Add deployment and status check scripts

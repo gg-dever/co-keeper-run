@@ -85,7 +85,8 @@ class QuickBooksPipeline:
 
         # Training metadata
         self.training_categories = None
-        self.category_types = ['EXPENSE', 'COGS', 'INCOME', 'OTHER_INCOME', 'OTHER_EXPENSE']
+        # Include ASSET and LIABILITY for Purchase transactions (inventory, equipment, loan payments, etc.)
+        self.category_types = ['EXPENSE', 'COGS', 'INCOME', 'OTHER_INCOME', 'OTHER_EXPENSE', 'ASSET', 'LIABILITY']
         self.test_accuracy = None
 
     @staticmethod
@@ -152,6 +153,17 @@ class QuickBooksPipeline:
         # Filter to trained account types only
         clean = df[df['account_type'].isin(self.category_types)].copy()
 
+        # Debug logging
+        print(f"Raw data: {len(df)} rows")
+        print(f"Account types found: {df['account_type'].value_counts().to_dict()}")
+        print(f"After filtering to {self.category_types}: {len(clean)} rows")
+
+        if len(clean) == 0:
+            raise ValueError(
+                f"No valid account types found. Got: {df['account_type'].unique().tolist()}. "
+                f"Expected one of: {self.category_types}"
+            )
+
         # Extract vendor name and description
         memo_cols = [c for c in df.columns if 'memo' in c.lower() or 'description' in c.lower()]
         memo_col = memo_cols[0] if memo_cols else None
@@ -170,16 +182,37 @@ class QuickBooksPipeline:
 
         # Filter valid transactions
         training_data = clean[['date', 'description', 'vendor_name', 'amount', 'category_true', 'account_code']].copy()
+        print(f"Before amount filter: {len(training_data)} rows")
         training_data = training_data[training_data['amount'] > 0]
+        print(f"After amount > 0 filter: {len(training_data)} rows")
         training_data = training_data[training_data['description'].str.strip().str.len() > 0]
+        print(f"After description filter: {len(training_data)} rows")
 
         # Remove categories with too few examples
         cat_counts = training_data['category_true'].value_counts()
-        small_cats = cat_counts[cat_counts < self.min_examples].index
+        print(f"Category distribution before min_examples filter:\n{cat_counts}")
+
+        # Adaptive minimum: use min_examples but don't filter out everything
+        # If all categories have < min_examples, lower the threshold
+        # Note: Need at least 4 samples per category for stratified 70/15/15 split
+        min_required_for_split = 4  # 2 for train/temp split, then 1 for val, 1 for test
+
+        if cat_counts.max() < self.min_examples:
+            # Use adaptive minimum, but ensure we can do stratified splits
+            adaptive_min = max(min_required_for_split, int(cat_counts.median()))
+            print(f"Adapting min_examples from {self.min_examples} to {adaptive_min} (dataset too small)")
+            small_cats = cat_counts[cat_counts < adaptive_min].index
+        else:
+            # Use configured minimum, but ensure it's at least 4 for splits
+            effective_min = max(min_required_for_split, self.min_examples)
+            small_cats = cat_counts[cat_counts < effective_min].index
         if len(small_cats) > 0:
+            print(f"Removing {len(small_cats)} categories with too few examples: {list(small_cats)}")
             training_data = training_data[~training_data['category_true'].isin(small_cats)]
+            print(f"After removing small categories: {len(training_data)} rows")
 
         self.training_categories = training_data['category_true'].unique().tolist()
+        print(f"Final training categories ({len(self.training_categories)}): {self.training_categories}")
 
         return training_data
 
@@ -343,6 +376,19 @@ class QuickBooksPipeline:
         # Prepare data
         training_data = self.prepare_training_data(df)
         print(f"Training: {len(training_data)} transactions, {len(self.training_categories)} categories")
+
+        # Validate we have enough data for stratified splits
+        if len(training_data) == 0:
+            raise ValueError("No valid training data after filtering. Please check your transaction data.")
+
+        cat_counts = training_data['category_true'].value_counts()
+        min_cat_count = cat_counts.min()
+        if min_cat_count < 4:
+            raise ValueError(
+                f"Insufficient data for training. The category '{cat_counts.idxmin()}' has only "
+                f"{min_cat_count} sample(s), but we need at least 4 samples per category for proper "
+                f"train/validation/test splits. Please select a longer date range with more transactions."
+            )
 
         # Split data (70/15/15)
         train, temp = train_test_split(

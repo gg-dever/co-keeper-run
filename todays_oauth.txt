@@ -1,0 +1,20 @@
+
+================================================================================
+🔗 QUICKBOOKS OAUTH AUTHORIZATION URL
+================================================================================
+
+https://appcenter.intuit.com/connect/oauth2?client_id=ABvbSgYFEnydg6shRJDNUBqZ3msmO9WBr0iu7C2Iyd92NmrZM8&response_type=code&scope=com.intuit.quickbooks.accounting&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fquickbooks%2Fcallback&state=gbxtEzspgFtlJee7SnhDLDIkx8am8C
+
+================================================================================
+
+📋 Next Steps:
+1. Copy the URL above
+2. Paste it in your browser
+3. Log in to QuickBooks Sandbox
+4. Select your sandbox company
+5. Click 'Authorize'
+6. You'll be redirected to: http://localhost:8000/api/quickbooks/callback
+7. Copy the 'code' and 'realmId' from that callback URL
+
+================================================================================
+

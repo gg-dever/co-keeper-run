@@ -226,24 +226,54 @@ class QuickBooksConnector:
             query += f" MAXRESULTS {max_results}"
 
             logger.info(f"Executing QB query: {query}")
-            transactions = self._qb_client.query(query)
+            response = self._qb_client.query(query)
+
+            # Handle response format - could be list, dict, or response object
+            transactions = []
+            if isinstance(response, dict):
+                # Extract data from dict response
+                if txn_type in response:
+                    transactions = response[txn_type]
+                elif 'QueryResponse' in response:
+                    transactions = response['QueryResponse'].get(txn_type, [])
+                else:
+                    logger.warning(f"Unexpected dict response format: {list(response.keys())}")
+                    transactions = []
+            elif isinstance(response, list):
+                transactions = response
+            elif hasattr(response, txn_type):
+                # Response object with transaction type attribute
+                transactions = getattr(response, txn_type, [])
+            else:
+                logger.warning(f"Unexpected response type: {type(response)}")
+                transactions = []
 
             result = []
             for txn in (transactions or []):
                 try:
-                    result.append(
-                        {
-                            "Id": txn.Id,
-                            "TxnDate": str(txn.TxnDate),
-                            "VendorRef": txn.VendorRef.name if hasattr(txn, "VendorRef") and txn.VendorRef else "",
-                            "TotalAmt": float(txn.TotalAmt) if hasattr(txn, "TotalAmt") and txn.TotalAmt else 0.0,
-                            "PrivateNote": txn.PrivateNote if hasattr(txn, "PrivateNote") else "",
-                            "AccountRef": txn.AccountRef.name if hasattr(txn, "AccountRef") and txn.AccountRef else "",
-                            "AccountRefId": txn.AccountRef.value if hasattr(txn, "AccountRef") and txn.AccountRef else "",
-                        }
-                    )
+                    # Handle both object and dict formats
+                    if isinstance(txn, str):
+                        logger.warning(f"Unexpected string result: {txn}")
+                        continue
+
+                    if isinstance(txn, dict):
+                        # Already a dict, use as-is
+                        result.append(txn)
+                    else:
+                        # Object format
+                        result.append(
+                            {
+                                "Id": str(getattr(txn, "Id", "")),
+                                "TxnDate": str(getattr(txn, "TxnDate", "")),
+                                "VendorRef": getattr(txn.VendorRef, "name", "") if hasattr(txn, "VendorRef") and txn.VendorRef else "",
+                                "TotalAmt": float(getattr(txn, "TotalAmt", 0.0) or 0.0),
+                                "PrivateNote": getattr(txn, "PrivateNote", ""),
+                                "AccountRef": getattr(txn.AccountRef, "name", "") if hasattr(txn, "AccountRef") and txn.AccountRef else "",
+                                "AccountRefId": getattr(txn.AccountRef, "value", "") if hasattr(txn, "AccountRef") and txn.AccountRef else "",
+                            }
+                        )
                 except Exception as e:
-                    logger.warning(f"Failed to transform transaction: {e}")
+                    logger.warning(f"Failed to transform transaction (type={type(txn)}): {e}")
                     continue
 
             logger.info(f"Successfully retrieved {len(result)} transactions")
@@ -251,6 +281,88 @@ class QuickBooksConnector:
 
         except Exception as e:
             logger.error(f"Failed to query QB transactions: {e}")
+            raise
+
+    def query_accounts(self, max_results: int = 1000) -> List[Dict]:
+        """
+        Query QuickBooks chart of accounts.
+
+        Args:
+            max_results: Maximum results to return
+
+        Returns:
+            list: Account records with ID, name, type, and category
+        """
+        try:
+            if not QB_SDK_AVAILABLE:
+                logger.warning("python-quickbooks SDK not available")
+                return []
+
+            if not hasattr(self, "_qb_client") or self._qb_client is None:
+                self._qb_client = QuickBooks(
+                    auth_client=self.auth_client,
+                    refresh_token=self.refresh_token,
+                    company_id=self.realm_id,
+                )
+
+            query = f"SELECT * FROM Account MAXRESULTS {max_results}"
+            logger.info(f"Executing QB query: {query}")
+            response = self._qb_client.query(query)
+
+            # Handle response format - could be list, dict, or response object
+            accounts = []
+            if isinstance(response, dict):
+                # Extract data from dict response
+                if 'Account' in response:
+                    accounts = response['Account']
+                elif 'QueryResponse' in response:
+                    accounts = response['QueryResponse'].get('Account', [])
+                else:
+                    logger.warning(f"Unexpected dict response format: {list(response.keys())}")
+                    accounts = []
+            elif isinstance(response, list):
+                accounts = response
+            elif hasattr(response, 'Account'):
+                # Response object with Account attribute
+                accounts = getattr(response, 'Account', [])
+            else:
+                logger.warning(f"Unexpected response type: {type(response)}")
+                accounts = []
+
+            result = []
+            for acct in (accounts or []):
+                try:
+                    # Handle both object and dict formats
+                    if isinstance(acct, str):
+                        logger.warning(f"Unexpected string result: {acct}")
+                        continue
+
+                    if isinstance(acct, dict):
+                        # Already a dict, use as-is
+                        result.append(acct)
+                    else:
+                        # Object format
+                        result.append(
+                            {
+                                "Id": str(getattr(acct, "Id", "")),
+                                "Name": getattr(acct, "Name", ""),
+                                "FullyQualifiedName": getattr(acct, "FullyQualifiedName", ""),
+                                "AccountType": getattr(acct, "AccountType", ""),
+                                "AccountSubType": getattr(acct, "AccountSubType", ""),
+                                "Classification": getattr(acct, "Classification", ""),
+                                "Active": getattr(acct, "Active", True),
+                                "CurrentBalance": float(getattr(acct, "CurrentBalance", 0.0) or 0.0),
+                            }
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to transform account (type={type(acct)}): {e}")
+                    continue
+
+            logger.info(f"Successfully retrieved {len(result)} accounts")
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to query QB accounts: {e}")
             raise
 
     def validate_connection(self) -> Dict:
