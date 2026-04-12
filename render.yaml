@@ -7,8 +7,7 @@ services:
   - type: web
     name: cokeeper-backend
     env: docker
-    rootDirectory: ./backend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.backend
     plan: free  # Change to 'starter' for $7/month (no sleep)
     envVars:
       - key: API_HOST
@@ -45,8 +44,7 @@ services:
   - type: web
     name: cokeeper-frontend
     env: docker
-    rootDirectory: ./frontend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.frontend
     plan: free  # Change to 'starter' for $7/month (no sleep)
     envVars:
       - key: BACKEND_URL
