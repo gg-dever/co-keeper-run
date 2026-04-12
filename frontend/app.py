@@ -556,8 +556,38 @@ for k, v in api_defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# CSV Workflow State (completely isolated)
+# Restore state from URL query parameters (for browser back/forward and refresh)
+if st.query_params.get('platform'):
+    st.session_state.selected_platform = st.query_params.get('platform')
+if st.query_params.get('qb_page'):
+    st.session_state.qb_workflow_page = st.query_params.get('qb_page')
+if st.query_params.get('xero_page'):
+    st.session_state.xero_workflow_page = st.query_params.get('xero_page')
+
+# CSV Workflow State (completely isolated, platform-specific like OAuth)
 csv_defaults = {
+    # Platform selection
+    'csv_selected_platform': None,  # "quickbooks" or "xero"
+
+    # QuickBooks CSV workflow state
+    'qb_csv_page': 'Upload',  # Upload | Results | Review | Export | Help
+    'qb_csv_model_trained': False,
+    'qb_csv_training_metrics': None,
+    'qb_csv_predictions': None,
+    'qb_csv_train_file_name': None,
+    'qb_csv_pred_file_name': None,
+    'qb_csv_selected_tier': 'GREEN',
+
+    # Xero CSV workflow state
+    'xero_csv_page': 'Upload',  # Upload | Results | Review | Export | Help
+    'xero_csv_model_trained': False,
+    'xero_csv_training_metrics': None,
+    'xero_csv_predictions': None,
+    'xero_csv_train_file_name': None,
+    'xero_csv_pred_file_name': None,
+    'xero_csv_selected_tier': 'GREEN',
+
+    # Legacy variables (for backwards compatibility, will be removed)
     'csv_pipeline': None,
     'csv_results': None,
     'csv_train_data': None,
@@ -568,10 +598,9 @@ csv_defaults = {
     'csv_train_file_name': None,
     'csv_pred_file_name': None,
     'csv_selected_tier': 'GREEN',
-    # Training state (matching API workflow)
     'csv_model_trained': False,
-    'csv_training_metrics': None,  # Stores training accuracy/metrics
-    'csv_predictions': None,  # Stores prediction results
+    'csv_training_metrics': None,
+    'csv_predictions': None,
 }
 for k, v in csv_defaults.items():
     if k not in st.session_state:
@@ -1010,12 +1039,68 @@ def train_csv_model(uploaded_file):
 
 
 def predict_csv_transactions(uploaded_file):
-    """Predict categories for uploaded CSV file"""
+    """Predict categories for uploaded CSV file (QuickBooks)"""
     try:
         files = {'file': (uploaded_file.name, uploaded_file, 'text/csv')}
 
         response = requests.post(
             f"{BACKEND_URL}/predict_qb",
+            files=files,
+            timeout=60
+        )
+
+        if response.status_code == 200:
+            return response.json(), None
+        else:
+            try:
+                error_detail = response.json().get('detail', 'Unknown error')
+            except:
+                error_detail = response.text[:200] if response.text else 'Unknown error'
+            return None, f"Prediction failed ({response.status_code}): {error_detail}"
+
+    except requests.exceptions.Timeout:
+        return None, "Prediction timed out. Please try with a smaller file."
+    except requests.exceptions.ConnectionError:
+        return None, "Could not connect to backend. Is it running?"
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+
+def train_xero_csv_model(uploaded_file):
+    """Train Xero ML model using uploaded CSV file"""
+    try:
+        files = {'file': (uploaded_file.name, uploaded_file, 'text/csv')}
+
+        response = requests.post(
+            f"{BACKEND_URL}/train_xero",
+            files=files,
+            timeout=120  # Training can take time
+        )
+
+        if response.status_code == 200:
+            return response.json(), None
+        else:
+            try:
+                error_detail = response.json().get('detail', 'Unknown error')
+            except:
+                error_detail = response.text[:200] if response.text else 'Unknown error'
+            return None, f"Training failed ({response.status_code}): {error_detail}"
+
+    except requests.exceptions.Timeout:
+        return None, "Training timed out. Please try with a smaller file."
+    except requests.exceptions.ConnectionError:
+        return None, "Could not connect to backend. Is it running?"
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+
+def predict_xero_csv_transactions(uploaded_file):
+    """Predict categories for uploaded Xero CSV file"""
+    try:
+        files = {'file': (uploaded_file.name, uploaded_file, 'text/csv')}
+
+        response = requests.post(
+            f"{BACKEND_URL}/predict_xero",
             files=files,
             timeout=60
         )
@@ -1130,6 +1215,7 @@ def display_homepage():
 
         if st.button("Connect to QuickBooks/Xero", use_container_width=True, type="primary", key="api_workflow_btn"):
             st.session_state.workflow_mode = "api"
+            st.session_state.selected_platform = None  # Reset to show platform selection
             st.rerun()
 
     with col2:
@@ -1166,6 +1252,7 @@ def display_homepage():
 
         if st.button("Upload CSV Files", use_container_width=True, type="secondary", key="csv_workflow_btn"):
             st.session_state.workflow_mode = "csv"
+            st.session_state.csv_selected_platform = None  # Reset to show platform selection
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -1252,6 +1339,26 @@ def display_api_workflow():
     """
     API Workflow Router - Routes to platform selection or platform-specific workflow
     """
+    # Sync URL with current state for browser back/forward support
+    if st.session_state.selected_platform:
+        st.query_params['platform'] = st.session_state.selected_platform
+        if st.session_state.selected_platform == 'quickbooks':
+            st.query_params['qb_page'] = st.session_state.qb_workflow_page
+            if 'xero_page' in st.query_params:
+                del st.query_params['xero_page']
+        elif st.session_state.selected_platform == 'xero':
+            st.query_params['xero_page'] = st.session_state.xero_workflow_page
+            if 'qb_page' in st.query_params:
+                del st.query_params['qb_page']
+    else:
+        # No platform selected - clear query params
+        if 'platform' in st.query_params:
+            del st.query_params['platform']
+        if 'qb_page' in st.query_params:
+            del st.query_params['qb_page']
+        if 'xero_page' in st.query_params:
+            del st.query_params['xero_page']
+
     # Check if platform is selected
     if not st.session_state.selected_platform:
         # No platform selected - show platform selection page
@@ -1296,8 +1403,14 @@ def display_quickbooks_workflow():
         </div>
         """, unsafe_allow_html=True)
 
-        # Back button - returns to platform selection
-        if st.button("← Choose Different Platform", use_container_width=True):
+        # Back buttons
+        if st.button("← Choose Different Platform", use_container_width=True, key="qb_api_back_platform"):
+            st.session_state.selected_platform = None
+            st.query_params.clear()  # Clear URL params
+            st.rerun()
+
+        if st.button("← Back to Home", use_container_width=True, key="qb_api_back_home"):
+            st.session_state.workflow_mode = None
             st.session_state.selected_platform = None
             st.rerun()
 
@@ -1399,8 +1512,14 @@ def display_xero_workflow():
         </div>
         """, unsafe_allow_html=True)
 
-        # Back button - returns to platform selection
-        if st.button("← Choose Different Platform", use_container_width=True):
+        # Back buttons
+        if st.button("← Choose Different Platform", use_container_width=True, key="xero_api_back_platform"):
+            st.session_state.selected_platform = None
+            st.query_params.clear()  # Clear URL params
+            st.rerun()
+
+        if st.button("← Back to Home", use_container_width=True, key="xero_api_back_home"):
+            st.session_state.workflow_mode = None
             st.session_state.selected_platform = None
             st.rerun()
 
@@ -1476,74 +1595,109 @@ def display_xero_workflow():
 
 def display_csv_workflow():
     """
-    CSV Workflow - File upload and training page
+    CSV Workflow Router - Shows platform selection or platform-specific workflow
+    Routes to: Platform Selection | QuickBooks CSV Workflow | Xero CSV Workflow
+    """
+    # If no platform selected, show platform selection page
+    if not st.session_state.csv_selected_platform:
+        render_csv_platform_selection_page()
+        return
+
+    # Route to platform-specific CSV workflow
+    if st.session_state.csv_selected_platform == "quickbooks":
+        display_quickbooks_csv_workflow()
+    elif st.session_state.csv_selected_platform == "xero":
+        display_xero_csv_workflow()
+
+
+def display_quickbooks_csv_workflow():
+    """
+    QuickBooks CSV Workflow - File upload and training page
     Shows: Upload & Train | Results | Review | Export | Help tabs
     """
-    # Show sidebar for CSV workflow
+    # Show sidebar for QuickBooks CSV workflow
     with st.sidebar:
         st.markdown("""
         <div style="padding: 8px 0 16px; border-bottom: 1px solid rgba(99,179,255,0.2); margin-bottom: 16px;">
           <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:34px; height:34px; background:linear-gradient(135deg,#7c3aed,#6d28d9);
+            <div style="width:34px; height:34px; background:linear-gradient(135deg,#3b82f6,#2563eb);
                  border-radius:8px; display:flex; align-items:center; justify-content:center;
-                 font-size:18px; box-shadow:0 3px 12px rgba(124,58,237,0.5);">📒</div>
+                 font-size:18px; box-shadow:0 3px 12px rgba(59,130,246,0.5);">📊</div>
             <div>
-              <div style="font-size:17px; font-weight:800; color:#e2eaf3; letter-spacing:-0.5px;">CoKeeper</div>
+              <div style="font-size:17px; font-weight:800; color:#e2eaf3; letter-spacing:-0.5px;">QuickBooks CSV</div>
               <div style="font-size:11px; color:#4a6a85; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;">CSV Upload</div>
             </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # Back to home button
+        # Back buttons
+        if st.button("← Choose Different Format", use_container_width=True):
+            st.session_state.csv_selected_platform = None
+            st.query_params.clear()  # Clear URL params
+            st.rerun()
+
         if st.button("← Back to Home", use_container_width=True):
             st.session_state.workflow_mode = None
+            st.session_state.csv_selected_platform = None
             st.rerun()
 
         st.markdown("---")
 
-        # Navigation tabs for CSV workflow
+        # Navigation tabs for QuickBooks CSV workflow
         csv_pages = {
-            "⬆️ Upload & Train": "csv_upload",
-            "📊 Results": "csv_results",
-            "✅ Review": "csv_review",
-            "💾 Export": "csv_export",
-            "❓ Help": "csv_help",
+            "⬆️ Upload & Train": "Upload",
+            "📊 Results": "Results",
+            "✅ Review": "Review",
+            "💾 Export": "Export",
+            "❓ Help": "Help",
         }
 
+        # Map current state to display value
+        current_page_display = None
+        for display_name, page_value in csv_pages.items():
+            if st.session_state.qb_csv_page == page_value:
+                current_page_display = display_name
+                break
+
+        if not current_page_display:
+            current_page_display = "⬆️ Upload & Train"
+            st.session_state.qb_csv_page = "Upload"
+
         selected_csv_page = st.radio(
-            "CSV Workflow Navigation",
+            "QuickBooks CSV Workflow Navigation",
             list(csv_pages.keys()),
+            index=list(csv_pages.keys()).index(current_page_display) if current_page_display in csv_pages.keys() else 0,
             label_visibility="collapsed",
         )
-        csv_page = csv_pages[selected_csv_page]
+        st.session_state.qb_csv_page = csv_pages[selected_csv_page]
 
         st.markdown("---")
 
-        # Status display for CSV workflow
+        # Status display for QuickBooks CSV workflow
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,rgba(124,58,237,0.12),rgba(168,85,247,0.06));
-             border:1px solid rgba(168,85,247,0.2); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
+        <div style="background:linear-gradient(135deg,rgba(59,130,246,0.12),rgba(37,99,235,0.06));
+             border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
                color:#4a6a85;margin-bottom:8px;">Status</div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <span style="font-size:13px;color:#8ba5be;">Model</span>
             <span style="font-size:12px;font-weight:700;
-                  color:{'#6ee7b7' if st.session_state.csv_training_result is not None else '#4a6a85'};
-                  background:{'rgba(16,185,129,0.1)' if st.session_state.csv_training_result is not None else 'rgba(74,106,133,0.1)'};
-                  border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.csv_training_result is not None else 'rgba(74,106,133,0.2)'};
+                  color:{'#6ee7b7' if st.session_state.qb_csv_model_trained else '#4a6a85'};
+                  background:{'rgba(16,185,129,0.1)' if st.session_state.qb_csv_model_trained else 'rgba(74,106,133,0.1)'};
+                  border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.qb_csv_model_trained else 'rgba(74,106,133,0.2)'};
                   padding:2px 10px;border-radius:12px;">
-              {'Trained' if st.session_state.csv_training_result is not None else 'Not Trained'}
+              {'Trained' if st.session_state.qb_csv_model_trained else 'Not Trained'}
             </span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:13px;color:#8ba5be;">Predictions</span>
             <span style="font-size:12px;font-weight:700;
-                  color:{'#6ee7b7' if st.session_state.csv_results is not None else '#4a6a85'};
-                  background:{'rgba(16,185,129,0.1)' if st.session_state.csv_results is not None else 'rgba(74,106,133,0.1)'};
-                  border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.csv_results is not None else 'rgba(74,106,133,0.2)'};
+                  color:{'#6ee7b7' if st.session_state.qb_csv_predictions is not None else '#4a6a85'};
+                  background:{'rgba(16,185,129,0.1)' if st.session_state.qb_csv_predictions is not None else 'rgba(74,106,133,0.1)'};
+                  border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.qb_csv_predictions is not None else 'rgba(74,106,133,0.2)'};
                   padding:2px 10px;border-radius:12px;">
-              {'%s items' % len(st.session_state.csv_results) if st.session_state.csv_results is not None else 'None yet'}
+              {st.session_state.qb_csv_predictions.get('total_transactions', 0) if st.session_state.qb_csv_predictions else 'None yet'}
             </span>
           </div>
         </div>
@@ -1551,21 +1705,272 @@ def display_csv_workflow():
 
         st.markdown("""
         <div style="font-size:12px;color:#4a6a85;line-height:1.6;padding:0 2px;">
-        Upload training data to build custom ML models and predict categories for your CSV files.
+        Upload QuickBooks CSV to train custom ML models and predict transaction categories.
         </div>
         """, unsafe_allow_html=True)
 
-    # Render the selected CSV workflow page
-    if csv_page == "csv_upload":
-        render_csv_upload_page()
-    elif csv_page == "csv_results":
-        render_csv_results_page()
-    elif csv_page == "csv_review":
-        render_csv_review_page()
-    elif csv_page == "csv_export":
-        render_csv_export_page()
-    elif csv_page == "csv_help":
-        render_csv_help_page()
+    # Render the selected QuickBooks CSV workflow page
+    if st.session_state.qb_csv_page == "Upload":
+        render_qb_csv_upload_page()
+    elif st.session_state.qb_csv_page == "Results":
+        render_qb_csv_results_page()
+    elif st.session_state.qb_csv_page == "Review":
+        render_qb_csv_review_page()
+    elif st.session_state.qb_csv_page == "Export":
+        render_qb_csv_export_page()
+    elif st.session_state.qb_csv_page == "Help":
+        render_qb_csv_help_page()
+
+
+def display_xero_csv_workflow():
+    """
+    Xero CSV Workflow - File upload and training page
+    Shows: Upload & Train | Results | Review | Export | Help tabs
+    """
+    # Show sidebar for Xero CSV workflow
+    with st.sidebar:
+        st.markdown("""
+        <div style="padding: 8px 0 16px; border-bottom: 1px solid rgba(99,179,255,0.2); margin-bottom: 16px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:34px; height:34px; background:linear-gradient(135deg,#10b981,#059669);
+                 border-radius:8px; display:flex; align-items:center; justify-content:center;
+                 font-size:18px; box-shadow:0 3px 12px rgba(16,185,129,0.5);">💚</div>
+            <div>
+              <div style="font-size:17px; font-weight:800; color:#e2eaf3; letter-spacing:-0.5px;">Xero CSV</div>
+              <div style="font-size:11px; color:#4a6a85; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;">CSV Upload</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Back buttons
+        if st.button("← Choose Different Format", use_container_width=True, key="xero_csv_back_platform"):
+            st.session_state.csv_selected_platform = None
+            st.query_params.clear()  # Clear URL params
+            st.rerun()
+
+        if st.button("← Back to Home", use_container_width=True, key="xero_csv_back_home"):
+            st.session_state.workflow_mode = None
+            st.session_state.csv_selected_platform = None
+            st.rerun()
+
+        st.markdown("---")
+
+        # Navigation tabs for Xero CSV workflow
+        csv_pages = {
+            "⬆️ Upload & Train": "Upload",
+            "📊 Results": "Results",
+            "✅ Review": "Review",
+            "💾 Export": "Export",
+            "❓ Help": "Help",
+        }
+
+        # Map current state to display value
+        current_page_display = None
+        for display_name, page_value in csv_pages.items():
+            if st.session_state.xero_csv_page == page_value:
+                current_page_display = display_name
+                break
+
+        if not current_page_display:
+            current_page_display = "⬆️ Upload & Train"
+            st.session_state.xero_csv_page = "Upload"
+
+        selected_csv_page = st.radio(
+            "Xero CSV Workflow Navigation",
+            list(csv_pages.keys()),
+            index=list(csv_pages.keys()).index(current_page_display) if current_page_display in csv_pages.keys() else 0,
+            label_visibility="collapsed",
+        )
+        st.session_state.xero_csv_page = csv_pages[selected_csv_page]
+
+        st.markdown("---")
+
+        # Status display for Xero CSV workflow
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.06));
+             border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+               color:#4a6a85;margin-bottom:8px;">Status</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:13px;color:#8ba5be;">Model</span>
+            <span style="font-size:12px;font-weight:700;
+                  color:{'#6ee7b7' if st.session_state.xero_csv_model_trained else '#4a6a85'};
+                  background:{'rgba(16,185,129,0.1)' if st.session_state.xero_csv_model_trained else 'rgba(74,106,133,0.1)'};
+                  border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.xero_csv_model_trained else 'rgba(74,106,133,0.2)'};
+                  padding:2px 10px;border-radius:12px;">
+              {'Trained' if st.session_state.xero_csv_model_trained else 'Not Trained'}
+            </span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#8ba5be;">Predictions</span>
+            <span style="font-size:12px;font-weight:700;
+                  color:{'#6ee7b7' if st.session_state.xero_csv_predictions is not None else '#4a6a85'};
+                  background:{'rgba(16,185,129,0.1)' if st.session_state.xero_csv_predictions is not None else 'rgba(74,106,133,0.1)'};
+                  border:1px solid {'rgba(16,185,129,0.3)' if st.session_state.xero_csv_predictions is not None else 'rgba(74,106,133,0.2)'};
+                  padding:2px 10px;border-radius:12px;">
+              {st.session_state.xero_csv_predictions.get('total_transactions', 0) if st.session_state.xero_csv_predictions else 'None yet'}
+            </span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="font-size:12px;color:#4a6a85;line-height:1.6;padding:0 2px;">
+        Upload Xero CSV to train custom ML models and predict transaction categories.
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Render the selected Xero CSV workflow page
+    if st.session_state.xero_csv_page == "Upload":
+        render_xero_csv_upload_page()
+    elif st.session_state.xero_csv_page == "Results":
+        render_xero_csv_results_page()
+    elif st.session_state.xero_csv_page == "Review":
+        render_xero_csv_review_page()
+    elif st.session_state.xero_csv_page == "Export":
+        render_xero_csv_export_page()
+    elif st.session_state.xero_csv_page == "Help":
+        render_xero_csv_help_page()
+
+
+# ============================================================================
+# RENDER FUNCTIONS - CSV Platform Selection
+# ============================================================================
+
+
+def render_csv_platform_selection_page():
+    """CSV Platform Selection - Choose between QuickBooks or Xero CSV workflow"""
+    st.markdown("""
+    <div style='text-align: center; padding: 60px 20px 40px;'>
+        <div style="
+            background: linear-gradient(135deg, #2563eb, #1d4ed8, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 48px;
+            font-weight: 900;
+            letter-spacing: -2px;
+            margin-bottom: 16px;
+        ">
+            📂 Choose Your CSV Format
+        </div>
+        <p style="
+            font-size: 18px;
+            color: #8ba5be;
+            font-weight: 500;
+            max-width: 600px;
+            margin: 0 auto 12px;
+            line-height: 1.5;
+        ">
+            Select the platform that matches your CSV export format
+        </p>
+        <p style="
+            font-size: 14px;
+            color: #4a6a85;
+            max-width: 500px;
+            margin: 0 auto;
+            line-height: 1.6;
+        ">
+            CSV files from QuickBooks and Xero have different formats. Choose the one you're using.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Platform selection cards
+    st.markdown("<div style='max-width: 900px; margin: 0 auto;'>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2, gap="large")
+
+    with col1:
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(99,179,255,0.06));
+            border: 2px solid rgba(99,179,255,0.3);
+            border-radius: 16px;
+            padding: 32px 24px;
+            text-align: center;
+            height: 100%;
+        ">
+            <div style="font-size: 48px; margin-bottom: 16px;">🟦</div>
+            <h3 style="color: #e2eaf3; margin: 0 0 12px 0; font-size: 22px; font-weight: 700;">
+                QuickBooks CSV
+            </h3>
+            <p style="color: #8ba5be; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+                Upload CSV exports from QuickBooks with standard column format.
+            </p>
+            <div style="
+                background: rgba(99,179,255,0.1);
+                border: 1px solid rgba(99,179,255,0.3);
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 12px;
+                color: #8ba5be;
+                text-align: left;
+                margin-bottom: 20px;
+            ">
+                <strong style="color: #e2eaf3;">Expected columns:</strong><br>
+                • Date, Account, Name<br>
+                • Memo/Description<br>
+                • Debit, Credit, Transaction Type
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("📊 QuickBooks CSV", use_container_width=True, type="primary", key="select_qb_csv"):
+            st.session_state.csv_selected_platform = "quickbooks"
+            st.session_state.qb_csv_page = "Upload"
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(52,211,153,0.06));
+            border: 2px solid rgba(16,185,129,0.3);
+            border-radius: 16px;
+            padding: 32px 24px;
+            text-align: center;
+            height: 100%;
+        ">
+            <div style="font-size: 48px; margin-bottom: 16px;">💚</div>
+            <h3 style="color: #e2eaf3; margin: 0 0 12px 0; font-size: 22px; font-weight: 700;">
+                Xero CSV
+            </h3>
+            <p style="color: #8ba5be; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+                Upload CSV exports from Xero with account transaction format.
+            </p>
+            <div style="
+                background: rgba(16,185,129,0.1);
+                border: 1px solid rgba(16,185,129,0.3);
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 12px;
+                color: #8ba5be;
+                text-align: left;
+                margin-bottom: 20px;
+            ">
+                <strong style="color: #e2eaf3;">Expected columns:</strong><br>
+                • Date, Contact, Description<br>
+                • Related account, Account Type<br>
+                • Debit, Credit
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("💚 Xero CSV", use_container_width=True, type="primary", key="select_xero_csv"):
+            st.session_state.csv_selected_platform = "xero"
+            st.session_state.xero_csv_page = "Upload"
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Back button
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("← Back to Home", use_container_width=True):
+            st.session_state.workflow_mode = None
+            st.rerun()
 
 
 # ============================================================================
@@ -1596,8 +2001,8 @@ def render_api_qb_live_page():
         </div>
         """, unsafe_allow_html=True)
 
-        col1, col2 = st.columns([2, 1])
-        with col1:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
             # ONE-CLICK CONNECTION BUTTON
             oauth_url = f"{BACKEND_URL}/api/quickbooks/connect"
 
@@ -1608,6 +2013,7 @@ def render_api_qb_live_page():
                     f'<meta http-equiv="refresh" content="0; url={oauth_url}">',
                     unsafe_allow_html=True
                 )
+
         with st.expander("ℹ️ What happens when I connect?"):
             st.markdown("""
             **It's safe and secure:**
@@ -2625,8 +3031,8 @@ def render_api_help_page():
 # RENDER FUNCTIONS - CSV Workflow
 # ============================================================================
 
-def render_csv_upload_page():
-    """Upload & Train tab for CSV workflow - 2-step train → predict workflow"""
+def render_qb_csv_upload_page():
+    """Upload & Train tab for QuickBooks CSV workflow - 2-step train → predict workflow"""
     st.markdown("""
     <div class="hero">
         <div class="glow-badge">Upload & Train</div>
@@ -2655,9 +3061,9 @@ def render_csv_upload_page():
         train_file = st.file_uploader(
             "Upload Training CSV (Historical Categorized Data)",
             type=['csv'],
-            key="csv_train_upload",
-            disabled=st.session_state.csv_model_trained,
-            help="CSV with columns: Date, Account, Name, Memo/Description, Debit, Credit, Transaction Type"
+            key="qb_csv_train_upload",
+            disabled=st.session_state.qb_csv_model_trained,
+            help="QuickBooks CSV with columns: Date, Account, Name, Memo/Description, Debit, Credit, Transaction Type"
         )
 
     with col2:
@@ -2667,27 +3073,27 @@ def render_csv_upload_page():
             "🎓 Train Model",
             type="primary",
             use_container_width=True,
-            key="csv_train_btn",
-            disabled=not train_file or st.session_state.csv_model_trained
+            key="qb_csv_train_btn",
+            disabled=not train_file or st.session_state.qb_csv_model_trained
         )
 
     if train_btn and train_file:
-        with st.spinner("Training model on your historical data... This may take a minute."):
+        with st.spinner("Training QuickBooks model on your historical data... This may take a minute."):
             result, error = train_csv_model(train_file)
 
         if error:
             st.error(f"❌ Training failed: {error}")
         else:
-            st.session_state.csv_model_trained = True
-            st.session_state.csv_training_metrics = result
-            st.session_state.csv_train_file_name = train_file.name
+            st.session_state.qb_csv_model_trained = True
+            st.session_state.qb_csv_training_metrics = result
+            st.session_state.qb_csv_train_file_name = train_file.name
             st.balloons()
-            st.success(f"🎉 Model trained successfully!")
+            st.success(f"🎉 QuickBooks model trained successfully!")
             st.rerun()
 
     # Show training status
-    if st.session_state.csv_model_trained and st.session_state.csv_training_metrics:
-        metrics = st.session_state.csv_training_metrics
+    if st.session_state.qb_csv_model_trained and st.session_state.qb_csv_training_metrics:
+        metrics = st.session_state.qb_csv_training_metrics
 
         st.success("✅ Model is trained and ready!")
 
@@ -2699,16 +3105,16 @@ def render_csv_upload_page():
         with col3:
             st.metric("Training Transactions", metrics.get('transactions', 0))
         with col4:
-            if st.button("🔄 Retrain", help="Train again with different data"):
-                st.session_state.csv_model_trained = False
-                st.session_state.csv_training_metrics = None
-                st.session_state.csv_predictions = None
-                st.session_state.csv_train_file_name = None
+            if st.button("🔄 Retrain", help="Train again with different data", key="qb_csv_retrain_btn"):
+                st.session_state.qb_csv_model_trained = False
+                st.session_state.qb_csv_training_metrics = None
+                st.session_state.qb_csv_predictions = None
+                st.session_state.qb_csv_train_file_name = None
                 st.rerun()
 
         with st.expander("📊 Training Details"):
             st.markdown(f"""
-            **Training File:** {st.session_state.csv_train_file_name}
+            **Training File:** {st.session_state.qb_csv_train_file_name}
 
             **Performance:**
             - Training Accuracy: {metrics.get('train_accuracy', 0):.1f}%
@@ -2717,8 +3123,8 @@ def render_csv_upload_page():
             **Model:** {metrics.get('model_path', 'N/A')}
             """)
 
-    elif not st.session_state.csv_model_trained:
-        st.info("👆 Upload a training CSV file and click 'Train Model' to begin")
+    elif not st.session_state.qb_csv_model_trained:
+        st.info("👆 Upload a QuickBooks training CSV file and click 'Train Model' to begin")
 
     st.divider()
 
@@ -2737,7 +3143,7 @@ def render_csv_upload_page():
     """, unsafe_allow_html=True)
 
     # Only show prediction section if model is trained
-    if not st.session_state.csv_model_trained:
+    if not st.session_state.qb_csv_model_trained:
         st.warning("⚠️ Please train your model first (Step 1 above)")
     else:
         col1, col2 = st.columns([3, 1])
@@ -2746,8 +3152,8 @@ def render_csv_upload_page():
             pred_file = st.file_uploader(
                 "Upload Prediction CSV (Uncategorized Transactions)",
                 type=['csv'],
-                key="csv_pred_upload",
-                help="CSV with columns: Date, Account, Name, Memo/Description, Debit, Credit"
+                key="qb_csv_pred_upload",
+                help="QuickBooks CSV with columns: Date, Account, Name, Memo/Description, Debit, Credit"
             )
 
         with col2:
@@ -2757,7 +3163,7 @@ def render_csv_upload_page():
                 "🔍 Get Predictions",
                 type="primary",
                 use_container_width=True,
-                key="csv_predict_btn",
+                key="qb_csv_predict_btn",
                 disabled=not pred_file
             )
 
@@ -2768,14 +3174,14 @@ def render_csv_upload_page():
             if error:
                 st.error(f"❌ {error}")
             else:
-                st.session_state.csv_predictions = result
-                st.session_state.csv_pred_file_name = pred_file.name
+                st.session_state.qb_csv_predictions = result
+                st.session_state.qb_csv_pred_file_name = pred_file.name
                 st.success(f"✅ Generated {result.get('total_transactions', 0)} predictions!")
                 st.info("👉 View detailed results in the **Results**, **Review**, and **Export** tabs")
 
         # Show prediction summary if available
-        if st.session_state.csv_predictions:
-            pred_data = st.session_state.csv_predictions
+        if st.session_state.qb_csv_predictions:
+            pred_data = st.session_state.qb_csv_predictions
 
             st.divider()
             st.markdown("### 📊 Prediction Summary")
@@ -2790,8 +3196,8 @@ def render_csv_upload_page():
                 st.metric("Needs Review", conf_dist.get('medium', 0) + conf_dist.get('low', 0))
 
 
-def render_csv_results_page():
-    """Results tab for CSV workflow - Full analytics"""
+def render_qb_csv_results_page():
+    """Results tab for QuickBooks CSV workflow - Full analytics"""
     st.markdown("""
     <div class="hero">
         <div class="glow-badge">Prediction Analytics</div>
@@ -2800,11 +3206,11 @@ def render_csv_results_page():
     </div>
     """, unsafe_allow_html=True)
 
-    if not st.session_state.csv_predictions:
+    if not st.session_state.qb_csv_predictions:
         st.info("👆 No results yet. Upload files and get predictions from the **Upload & Train** tab first.")
         return
 
-    pred_data = st.session_state.csv_predictions
+    pred_data = st.session_state.qb_csv_predictions
     predictions = pred_data.get('predictions', [])
 
     if not predictions:
@@ -2856,7 +3262,7 @@ def render_csv_results_page():
             yaxis=plotly_axis("Count"),
             showlegend=False,
         )
-        st.plotly_chart(fig, use_container_width=True, key="csv_tier_chart")
+        st.plotly_chart(fig, use_container_width=True, key="qb_csv_tier_chart")
 
     with col_r:
         st.markdown('<div class="section-label">Confidence Score Distribution</div>', unsafe_allow_html=True)
@@ -2878,7 +3284,7 @@ def render_csv_results_page():
             yaxis=plotly_axis("Count"),
             showlegend=False,
         )
-        st.plotly_chart(fig2, use_container_width=True, key="csv_conf_chart")
+        st.plotly_chart(fig2, use_container_width=True, key="qb_csv_conf_chart")
 
     st.divider()
 
@@ -2907,17 +3313,17 @@ def render_csv_results_page():
         xaxis=plotly_axis("Count"),
         yaxis=plotly_axis("Category"),
     )
-    st.plotly_chart(fig3, use_container_width=True, key="csv_top_cats")
+    st.plotly_chart(fig3, use_container_width=True, key="qb_csv_top_cats")
 
     st.divider()
 
     # Data table
     st.markdown('<div class="section-label">All Predictions</div>', unsafe_allow_html=True)
-    st.dataframe(df, use_container_width=True, height=400, key="csv_all_predictions")
+    st.dataframe(df, use_container_width=True, height=400, key="qb_csv_all_predictions")
 
 
-def render_csv_review_page():
-    """Review tab for CSV workflow - Filter by tier"""
+def render_qb_csv_review_page():
+    """Review tab for QuickBooks CSV workflow - Filter by tier"""
     st.markdown("""
     <div class="hero">
         <div class="glow-badge">Review & Filter</div>
@@ -2926,11 +3332,11 @@ def render_csv_review_page():
     </div>
     """, unsafe_allow_html=True)
 
-    if not st.session_state.csv_predictions:
+    if not st.session_state.qb_csv_predictions:
         st.info("👆 No predictions to review yet. Get predictions from the **Upload & Train** tab first.")
         return
 
-    predictions = st.session_state.csv_predictions.get('predictions', [])
+    predictions = st.session_state.qb_csv_predictions.get('predictions', [])
     if not predictions:
         st.warning("No predictions found.")
         return
@@ -2938,19 +3344,19 @@ def render_csv_review_page():
     # Tier filter buttons
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("🟢 GREEN", use_container_width=True, key="csv_tier_green"):
-            st.session_state.csv_selected_tier = "GREEN"
+        if st.button("🟢 GREEN", use_container_width=True, key="qb_csv_tier_green"):
+            st.session_state.qb_csv_selected_tier = "GREEN"
     with col2:
-        if st.button("🟡 YELLOW", use_container_width=True, key="csv_tier_yellow"):
-            st.session_state.csv_selected_tier = "YELLOW"
+        if st.button("🟡 YELLOW", use_container_width=True, key="qb_csv_tier_yellow"):
+            st.session_state.qb_csv_selected_tier = "YELLOW"
     with col3:
-        if st.button("🔴 RED", use_container_width=True, key="csv_tier_red"):
-            st.session_state.csv_selected_tier = "RED"
+        if st.button("🔴 RED", use_container_width=True, key="qb_csv_tier_red"):
+            st.session_state.qb_csv_selected_tier = "RED"
     with col4:
-        if st.button("📋 ALL", use_container_width=True, key="csv_tier_all"):
-            st.session_state.csv_selected_tier = "ALL"
+        if st.button("📋 ALL", use_container_width=True, key="qb_csv_tier_all"):
+            st.session_state.qb_csv_selected_tier = "ALL"
 
-    selected_tier = st.session_state.csv_selected_tier
+    selected_tier = st.session_state.qb_csv_selected_tier
 
     # Filter predictions
     if selected_tier == "ALL":
@@ -2980,11 +3386,11 @@ def render_csv_review_page():
     if len(tier_data) == 0:
         st.info(f"No {selected_tier} tier predictions found.")
     else:
-        st.dataframe(tier_data, use_container_width=True, height=400, key="csv_review_table")
+        st.dataframe(tier_data, use_container_width=True, height=400, key="qb_csv_review_table")
 
 
-def render_csv_export_page():
-    """Export tab for CSV workflow - Download results"""
+def render_qb_csv_export_page():
+    """Export tab for QuickBooks CSV workflow - Download results"""
     st.markdown("""
     <div class="hero">
         <div class="glow-badge">Download Results</div>
@@ -2993,11 +3399,11 @@ def render_csv_export_page():
     </div>
     """, unsafe_allow_html=True)
 
-    if not st.session_state.csv_predictions:
+    if not st.session_state.qb_csv_predictions:
         st.info("👆 No results to export yet. Get predictions from the **Upload & Train** tab first.")
         return
 
-    predictions = st.session_state.csv_predictions.get('predictions', [])
+    predictions = st.session_state.qb_csv_predictions.get('predictions', [])
     if not predictions:
         st.warning("No predictions to export.")
         return
@@ -3018,11 +3424,11 @@ def render_csv_export_page():
         st.download_button(
             "⬇️ Download CSV",
             csv,
-            f"csv_predictions_{datetime.now().strftime('%Y%m%d')}.csv",
+            f"qb_csv_predictions_{datetime.now().strftime('%Y%m%d')}.csv",
             "text/csv",
             use_container_width=True,
             type="primary",
-            key="csv_export_csv"
+            key="qb_csv_export_csv"
         )
 
     with col2:
@@ -3044,11 +3450,11 @@ def render_csv_export_page():
             st.download_button(
                 "⬇️ Download Excel",
                 buffer.getvalue(),
-                f"csv_predictions_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                f"qb_csv_predictions_{datetime.now().strftime('%Y%m%d')}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
                 type="primary",
-                key="csv_export_excel"
+                key="qb_csv_export_excel"
             )
         except ImportError:
             st.error("Excel export requires openpyxl. Use CSV export instead.")
@@ -3058,9 +3464,9 @@ def render_csv_export_page():
 
     col1, col2 = st.columns(2)
     with col1:
-        tiers = st.multiselect("Include tiers", ['GREEN', 'YELLOW', 'RED'], default=['GREEN'], key="csv_export_tiers")
+        tiers = st.multiselect("Include tiers", ['GREEN', 'YELLOW', 'RED'], default=['GREEN'], key="qb_csv_export_tiers")
     with col2:
-        min_conf = st.slider("Minimum confidence", 0.0, 1.0, 0.7, key="csv_export_min_conf")
+        min_conf = st.slider("Minimum confidence", 0.0, 1.0, 0.7, key="qb_csv_export_min_conf")
 
     # Filter by tier and confidence
     filtered = df[df['Confidence Tier'].isin(tiers) & (df['Confidence Score'] >= min_conf)]
@@ -3071,18 +3477,18 @@ def render_csv_export_page():
         st.download_button(
             "⬇️ Download Filtered CSV",
             csv_filtered,
-            f"csv_predictions_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+            f"qb_csv_predictions_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
             "text/csv",
             use_container_width=True,
             type="primary",
-            key="csv_export_filtered"
+            key="qb_csv_export_filtered"
         )
     else:
         st.warning("No predictions match the current filters.")
 
 
-def render_csv_help_page():
-    """Help tab for CSV workflow"""
+def render_qb_csv_help_page():
+    """Help tab for QuickBooks CSV workflow"""
     st.markdown("""
     <div class="hero">
         <div class="glow-badge">Help & Guide</div>
@@ -3162,6 +3568,514 @@ def render_csv_help_page():
 
     **Can I retrain the model?**
     Yes! Upload new training data anytime to retrain.
+    """)
+
+
+# ============================================================================
+# XERO CSV WORKFLOW PAGE FUNCTIONS
+# ============================================================================
+
+def render_xero_csv_upload_page():
+    """Upload & Train tab for Xero CSV workflow - 2-step train → predict workflow"""
+    st.markdown("""
+    <div class="hero">
+        <div class="glow-badge">Upload & Train</div>
+        <h1>Xero CSV Upload</h1>
+        <p>Upload historical Xero data to train your custom model, then predict categories for new transactions.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # STEP 1: TRAIN MODEL
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06));
+         border: 1px solid rgba(16,185,129,0.2); border-radius: 12px; padding: 24px; margin: 20px 0;">
+        <h3 style="color: #e2eaf3; margin-top: 0;">🎓 Step 1: Train Your Model</h3>
+        <p style="color: #8ba5be; font-size: 15px; line-height: 1.6;">
+            Upload a Xero CSV export with <strong>already categorized</strong> transactions.
+            This will teach the model YOUR categorization patterns.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        train_file = st.file_uploader(
+            "Upload Training CSV (Historical Categorized Data)",
+            type=['csv'],
+            key="xero_csv_train_upload",
+            disabled=st.session_state.xero_csv_model_trained,
+            help="Xero CSV with columns: Date, Contact, Description, Related account, Account Type, Debit, Credit"
+        )
+
+    with col2:
+        st.write("")
+        st.write("")
+        train_btn = st.button(
+            "🎓 Train Model",
+            type="primary",
+            use_container_width=True,
+            key="xero_csv_train_btn",
+            disabled=not train_file or st.session_state.xero_csv_model_trained
+        )
+
+    if train_btn and train_file:
+        with st.spinner("Training Xero model on your historical data... This may take a minute."):
+            result, error = train_xero_csv_model(train_file)
+
+        if error:
+            st.error(f"❌ Training failed: {error}")
+        else:
+            st.session_state.xero_csv_model_trained = True
+            st.session_state.xero_csv_training_metrics = result
+            st.session_state.xero_csv_train_file_name = train_file.name
+            st.balloons()
+            st.success(f"🎉 Xero model trained successfully!")
+            st.rerun()
+
+    # Show training status
+    if st.session_state.xero_csv_model_trained and st.session_state.xero_csv_training_metrics:
+        metrics = st.session_state.xero_csv_training_metrics
+
+        st.success("✅ Model is trained and ready!")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Test Accuracy", f"{metrics.get('test_accuracy', 0):.1f}%")
+        with col2:
+            st.metric("Categories Learned", metrics.get('categories', 0))
+        with col3:
+            st.metric("Training Transactions", metrics.get('transactions', 0))
+        with col4:
+            if st.button("🔄 Retrain", help="Train again with different data", key="xero_csv_retrain"):
+                st.session_state.xero_csv_model_trained = False
+                st.session_state.xero_csv_training_metrics = None
+                st.session_state.xero_csv_predictions = None
+                st.session_state.xero_csv_train_file_name = None
+                st.rerun()
+
+        with st.expander("📊 Training Details"):
+            st.markdown(f"""
+            **Training File:** {st.session_state.xero_csv_train_file_name}
+
+            **Performance:**
+            - Training Accuracy: {metrics.get('train_accuracy', 0):.1f}%
+            - Test Accuracy: {metrics.get('test_accuracy', 0):.1f}%
+
+            **Model:** {metrics.get('model_path', 'N/A')}
+            """)
+
+    elif not st.session_state.xero_csv_model_trained:
+        st.info("👆 Upload a Xero training CSV file and click 'Train Model' to begin")
+
+    st.divider()
+
+    # STEP 2: GET PREDICTIONS
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(52,211,153,0.06));
+         border: 1px solid rgba(16,185,129,0.2); border-radius: 12px; padding: 24px; margin: 20px 0;">
+        <h3 style="color: #e2eaf3; margin-top: 0;">🔮 Step 2: Get Predictions</h3>
+        <p style="color: #8ba5be; font-size: 15px; line-height: 1.6;">
+            Now upload a CSV with <strong>uncategorized/new</strong> transactions from Xero.
+            The model will suggest categories based on what it learned from your historical data.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not st.session_state.xero_csv_model_trained:
+        st.warning("⚠️ Please train your model first (Step 1 above)")
+    else:
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            pred_file = st.file_uploader(
+                "Upload Prediction CSV (Uncategorized Transactions)",
+                type=['csv'],
+                key="xero_csv_pred_upload",
+                help="Xero CSV with columns: Date, Contact, Description, Debit, Credit"
+            )
+
+        with col2:
+            st.write("")
+            st.write("")
+            predict_btn = st.button(
+                "🔍 Get Predictions",
+                type="primary",
+                use_container_width=True,
+                key="xero_csv_predict_btn",
+                disabled=not pred_file
+            )
+
+        if predict_btn and pred_file:
+            with st.spinner("Generating predictions..."):
+                result, error = predict_xero_csv_transactions(pred_file)
+
+            if error:
+                st.error(f"❌ {error}")
+            else:
+                st.session_state.xero_csv_predictions = result
+                st.session_state.xero_csv_pred_file_name = pred_file.name
+                st.success(f"✅ Generated {result.get('total_transactions', 0)} predictions!")
+                st.info("👉 View detailed results in the **Results**, **Review**, and **Export** tabs")
+
+        # Show prediction summary if available
+        if st.session_state.xero_csv_predictions:
+            pred_data = st.session_state.xero_csv_predictions
+
+            st.divider()
+            st.markdown("### 📊 Prediction Summary")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Predictions", pred_data.get('total_transactions', 0))
+            with col2:
+                conf_dist = pred_data.get('confidence_distribution', {})
+                st.metric("High Confidence", conf_dist.get('high', 0))
+            with col3:
+                st.metric("Needs Review", conf_dist.get('medium', 0) + conf_dist.get('low', 0))
+
+
+def render_xero_csv_results_page():
+    """Results tab for Xero CSV workflow - Full analytics"""
+    st.markdown("""
+    <div class="hero">
+        <div class="glow-badge">Prediction Analytics</div>
+        <h1>Results & Analysis</h1>
+        <p>View prediction results with confidence scores and breakdowns.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not st.session_state.xero_csv_predictions:
+        st.info("👆 No results yet. Upload files and get predictions from the **Upload & Train** tab first.")
+        return
+
+    pred_data = st.session_state.xero_csv_predictions
+    predictions = pred_data.get('predictions', [])
+
+    if not predictions:
+        st.warning("No predictions found in results.")
+        return
+
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Predictions", pred_data.get('total_transactions', 0))
+    with col2:
+        conf_dist = pred_data.get('confidence_distribution', {})
+        st.metric("High Confidence", conf_dist.get('high', 0))
+    with col3:
+        st.metric("Needs Review", conf_dist.get('medium', 0) + conf_dist.get('low', 0))
+
+    st.divider()
+
+    # Convert to DataFrame for analysis
+    df = pd.DataFrame(predictions)
+
+    # Confidence tier breakdown
+    col_l, col_r = st.columns(2)
+
+    with col_l:
+        st.markdown('<div class="section-label">Confidence Tier Distribution</div>', unsafe_allow_html=True)
+
+        tier_counts = {"GREEN": 0, "YELLOW": 0, "RED": 0}
+        for pred in predictions:
+            tier = pred.get("Confidence Tier", "RED")
+            tier_counts[tier] = tier_counts.get(tier, 0) + 1
+
+        fig = go.Figure(go.Bar(
+            x=list(tier_counts.keys()),
+            y=list(tier_counts.values()),
+            marker=dict(
+                color=['#10b981', '#f59e0b', '#ef4444'],
+                line=dict(color=['rgba(16,185,129,0.5)', 'rgba(245,158,11,0.5)', 'rgba(239,68,68,0.5)'], width=1),
+            ),
+            text=list(tier_counts.values()),
+            textposition='outside',
+            textfont=dict(color='#cdd9e5', size=13),
+            hovertemplate='<b>%{x}</b><br>%{y} predictions<extra></extra>',
+        ))
+        fig.update_layout(
+            **PLOTLY_LAYOUT,
+            height=300,
+            xaxis=plotly_axis("Confidence Tier"),
+            yaxis=plotly_axis("Count"),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, key="xero_csv_tier_chart")
+
+    with col_r:
+        st.markdown('<div class="section-label">Confidence Score Distribution</div>', unsafe_allow_html=True)
+
+        confidence_scores = [p.get('Confidence Score', 0) for p in predictions]
+        fig2 = go.Figure(go.Histogram(
+            x=confidence_scores,
+            nbinsx=20,
+            marker=dict(
+                color='#3b82f6',
+                line=dict(color='rgba(99,179,255,0.3)', width=1),
+            ),
+            hovertemplate='Confidence: %{x:.0%}<br>Count: %{y}<extra></extra>',
+        ))
+        fig2.update_layout(
+            **PLOTLY_LAYOUT,
+            height=300,
+            xaxis=plotly_axis("Confidence Score"),
+            yaxis=plotly_axis("Count"),
+            showlegend=False,
+        )
+        st.plotly_chart(fig2, use_container_width=True, key="xero_csv_conf_chart")
+
+    st.divider()
+
+    # Top categories chart
+    st.markdown('<div class="section-label">Top Predicted Categories</div>', unsafe_allow_html=True)
+
+    category_counts = {}
+    for pred in predictions:
+        cat = pred.get("Related account (New)", "Unknown")
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    # Get top 10 categories
+    top_cats = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    fig3 = go.Figure(go.Bar(
+        x=[cat[1] for cat in top_cats],
+        y=[cat[0] for cat in top_cats],
+        orientation='h',
+        marker=dict(color='#3b82f6'),
+        text=[cat[1] for cat in top_cats],
+        textposition='outside',
+    ))
+    fig3.update_layout(
+        **PLOTLY_LAYOUT,
+        height=400,
+        xaxis=plotly_axis("Count"),
+        yaxis=plotly_axis("Category"),
+    )
+    st.plotly_chart(fig3, use_container_width=True, key="xero_csv_top_cats")
+
+    st.divider()
+
+    # Data table
+    st.markdown('<div class="section-label">All Predictions</div>', unsafe_allow_html=True)
+    st.dataframe(df, use_container_width=True, height=400, key="xero_csv_all_predictions")
+
+
+def render_xero_csv_review_page():
+    """Review tab for Xero CSV workflow - Filter by tier"""
+    st.markdown("""
+    <div class="hero">
+        <div class="glow-badge">Review & Filter</div>
+        <h1>Review Predictions</h1>
+        <p>Filter predictions by confidence tier.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not st.session_state.xero_csv_predictions:
+        st.info("👆 No predictions to review yet. Get predictions from the **Upload & Train** tab first.")
+        return
+
+    predictions = st.session_state.xero_csv_predictions.get('predictions', [])
+    if not predictions:
+        st.warning("No predictions found.")
+        return
+
+    # Tier filter buttons
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if st.button("🟢 GREEN", use_container_width=True, key="xero_csv_tier_green"):
+            st.session_state.xero_csv_selected_tier = "GREEN"
+    with col2:
+        if st.button("🟡 YELLOW", use_container_width=True, key="xero_csv_tier_yellow"):
+            st.session_state.xero_csv_selected_tier = "YELLOW"
+    with col3:
+        if st.button("🔴 RED", use_container_width=True, key="xero_csv_tier_red"):
+            st.session_state.xero_csv_selected_tier = "RED"
+    with col4:
+        if st.button("📋 ALL", use_container_width=True, key="xero_csv_tier_all"):
+            st.session_state.xero_csv_selected_tier = "ALL"
+
+    selected_tier = st.session_state.xero_csv_selected_tier
+
+    # Filter predictions
+    if selected_tier == "ALL":
+        tier_data = pd.DataFrame(predictions)
+    else:
+        tier_predictions = [p for p in predictions if p.get("Confidence Tier") == selected_tier]
+        tier_data = pd.DataFrame(tier_predictions)
+
+    # Display tier info
+    tier_colors = {
+        "GREEN": "#10b981",
+        "YELLOW": "#f59e0b",
+        "RED": "#ef4444",
+        "ALL": "#3b82f6"
+    }
+    tier_color = tier_colors.get(selected_tier, '#059669')
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05));
+         border:1px solid {tier_color}40;border-radius:14px;padding:20px 24px;margin-bottom:24px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+           color:{tier_color};margin-bottom:4px;">{selected_tier} Tier</div>
+      <div style="font-size:14px;color:#6b8ba4;">{len(tier_data):,} transactions</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if len(tier_data) == 0:
+        st.info(f"No {selected_tier} tier predictions found.")
+    else:
+        st.dataframe(tier_data, use_container_width=True, height=400, key="xero_csv_review_table")
+
+
+def render_xero_csv_export_page():
+    """Export tab for Xero CSV workflow - Download results"""
+    st.markdown("""
+    <div class="hero">
+        <div class="glow-badge">Download Results</div>
+        <h1>Export</h1>
+        <p>Download your prediction results in various formats.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not st.session_state.xero_csv_predictions:
+        st.info("👆 No results to export yet. Get predictions from the **Upload & Train** tab first.")
+        return
+
+    predictions = st.session_state.xero_csv_predictions.get('predictions', [])
+    if not predictions:
+        st.warning("No predictions to export.")
+        return
+
+    df = pd.DataFrame(predictions)
+
+    # Download buttons
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        <div class="card">
+            <h3>CSV Export</h3>
+            <p>Universal format for Excel, Google Sheets, and more.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        csv = df.to_csv(index=False)
+        st.download_button(
+            "⬇️ Download CSV",
+            csv,
+            f"xero_csv_predictions_{datetime.now().strftime('%Y%m%d')}.csv",
+            "text/csv",
+            use_container_width=True,
+            type="primary",
+            key="xero_csv_export_csv"
+        )
+
+    with col2:
+        st.markdown("""
+        <div class="card">
+            <h3>Excel Export</h3>
+            <p>Professional workbook format.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            from io import BytesIO
+            import openpyxl
+
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Predictions')
+
+            st.download_button(
+                "⬇️ Download Excel",
+                buffer.getvalue(),
+                f"xero_csv_predictions_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                type="primary",
+                key="xero_csv_export_excel"
+            )
+        except ImportError:
+            st.error("Excel export requires openpyxl. Use CSV export instead.")
+
+    st.divider()
+    st.markdown("### Filter & Export")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        tiers = st.multiselect("Include tiers", ['GREEN', 'YELLOW', 'RED'], default=['GREEN'], key="xero_csv_export_tiers")
+    with col2:
+        min_conf = st.slider("Minimum confidence", 0.0, 1.0, 0.7, key="xero_csv_export_min_conf")
+
+    # Filter by tier and confidence
+    filtered = df[df['Confidence Tier'].isin(tiers) & (df['Confidence Score'] >= min_conf)]
+    st.info(f"📊 {len(filtered):,} of {len(df):,} predictions match filters")
+
+    if len(filtered) > 0:
+        csv_filtered = filtered.to_csv(index=False)
+        st.download_button(
+            "⬇️ Download Filtered CSV",
+            csv_filtered,
+            f"xero_csv_predictions_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+            "text/csv",
+            use_container_width=True,
+            type="primary",
+            key="xero_csv_export_filtered"
+        )
+    else:
+        st.warning("No predictions match the current filters.")
+
+
+def render_xero_csv_help_page():
+    """Help tab for Xero CSV workflow"""
+    st.markdown("""
+    <div class="hero">
+        <div class="glow-badge">Help & Guide</div>
+        <h1>Xero CSV Workflow Help</h1>
+        <p>Learn how to use the Xero CSV upload feature</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    ### 📝 How It Works
+
+    1. **Export from Xero**: Download your Account Transactions report as CSV
+    2. **Upload Training Data**: Upload historical categorized Xero data (Step 1)
+    3. **Train Model**: Click "Train Model" to learn your categorization patterns
+    4. **Upload New Data**: Upload uncategorized Xero transactions (Step 2)
+    5. **Get Predictions**: Click "Get Predictions" to categorize new transactions
+    6. **Review & Export**: Check results and download predictions
+
+    ### 📋 CSV Format Requirements
+
+    **For Training CSV (Historical Data):**
+    - `Date`: Transaction date
+    - `Contact`: Vendor/customer name
+    - `Description`: Transaction description
+    - `Related account`: GL account category
+    - `Account Type`: REVENUE, EXPENSE, DIRECT_COSTS, etc.
+    - `Debit` and `Credit`: Transaction amounts
+
+    **For Prediction CSV (New Data):**
+    - `Date`: Transaction date
+    - `Contact`: Vendor/customer name
+    - `Description`: Transaction description
+    - `Debit` and `Credit`: Transaction amounts
+
+    ### 💡 Tips
+    - **More data = better accuracy**: Use at least 100-500 transactions for training
+    - **Match your format**: Ensure CSVs are exported from Xero with standard format
+    - **Header rows**: Xero CSVs may have 4 header rows - these are automatically detected and skipped
+
+    ### ❓ FAQ
+
+    **How is this different from QuickBooks CSV?**
+    - Xero uses different column names (Contact vs Name, Related account vs Transaction Type)
+    - Xero CSVs have metadata header rows that are auto-detected
+    - The ML model is trained specifically for Xero's data format
+
+    **Can I use QuickBooks data here?**
+    - No, please use the QuickBooks CSV workflow for QuickBooks data. The formats are incompatible.
     """)
 
 

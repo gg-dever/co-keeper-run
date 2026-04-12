@@ -1,18 +1,78 @@
-# CoKeeper Cloud Run
+# CoKeeper
 
-Production deployment of CoKeeper transaction categorization application on Google Cloud Run.
+AI-powered transaction categorization for QuickBooks and Xero accounting platforms.
 
-## Architecture
+## 🎯 What is CoKeeper?
 
-This repository contains:
-- **Backend**: FastAPI application with ML pipeline (port 8000)
-- **Frontend**: Streamlit web application (port 8501)
+CoKeeper uses machine learning to automatically categorize financial transactions in QuickBooks and Xero. Train custom models on your historical data and get instant predictions for new transactions with confidence scores.
 
-Both services are containerized and deployed to Google Cloud Run.
+**Key Features:**
+- ✅ QuickBooks & Xero integration via OAuth 2.0
+- ✅ CSV upload workflow (no OAuth required)
+- ✅ Custom ML models trained on YOUR data
+- ✅ Confidence tiers (GREEN/YELLOW/RED) for predictions
+- ✅ Interactive web UI with analytics dashboards
+- ✅ Export predictions to CSV or Excel
 
-## Quick Start
+---
 
-### Local Development with Docker Compose
+## 🚀 Quick Start
+
+### **Deploy to Production** (Show your work publicly)
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for complete guide with 3 deployment options:
+- **Render.com** (FREE or $14/month, easiest, GitHub auto-deploy)
+- **DigitalOcean** ($6/month, best value)
+- **Google Cloud Run** ($5-20/month, auto-scaling)
+
+**Quick Start - Render.com**:
+```bash
+# 1. Push to GitHub
+git push
+
+# 2. Connect to Render.com
+# 3. Auto-deploys! Get public URL in 30 minutes
+```
+
+### **Run Locally** (Development/Testing)
+
+See **[LOCAL_TESTING_GUIDE.md](LOCAL_TESTING_GUIDE.md)** for local development setup.
+
+**Quick Start**:
+```bash
+# Backend
+cd backend
+uvicorn main:app --port 8002
+
+# Frontend (new terminal)
+cd frontend
+streamlit run app.py
+
+# Visit: http://localhost:8501
+```
+
+---
+
+## 📚 Documentation
+
+**Start Here**:
+- 🏠 **[DOCS_GUIDE.md](DOCS_GUIDE.md)** - Documentation index (find everything)
+- 🚀 **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- 🎯 **[DEMO_STRATEGY.md](DEMO_STRATEGY.md)** - How to demo CoKeeper
+- 🔐 **[OAUTH_PRODUCTION_SETUP.md](OAUTH_PRODUCTION_SETUP.md)** - Enable real QB/Xero accounts
+
+**For AI Agents**:
+- 🤖 **[CLAUDE.md](CLAUDE.md)** - Workspace orientation for AI assistants
+
+---
+
+## 💻 Local Development
+
+### Prerequisites
+- Python 3.12+
+- Docker and Docker Compose
+
+### Quick Start
 
 ```bash
 # Start both services

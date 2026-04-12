@@ -1667,25 +1667,50 @@ async def predict_xero_categories(request: PredictCategoriesRequest):
 
         df_pred = pd.DataFrame(pred_data)
 
-        # Get predictions
-        result = pipeline.predict(df_pred, threshold=request.confidence_threshold)
-        predictions = result.get("predictions", [])
+        # Get predictions (returns List[Dict] directly)
+        raw_predictions = pipeline.predict(df_pred)
 
-        # Calculate tier distributions
+        # Transform predictions to frontend format (snake_case keys)
+        predictions = []
+        for idx, pred_result in enumerate(raw_predictions):
+            orig_txn = transactions[idx] if idx < len(transactions) else {}
+
+            transformed = {
+                "transaction_id": orig_txn.get("BankTransactionID", ""),
+                "vendor_name": pred_data[idx].get("Contact", "Unknown"),
+                "amount": pred_data[idx].get("Debit", 0) + pred_data[idx].get("Credit", 0),
+                "transaction_date": pred_data[idx].get("Date", ""),
+                "current_category": "",  # Empty for new transactions
+                "predicted_category": pred_result.get("Related account (New)", "Unknown"),
+                "confidence": float(pred_result.get("Confidence Score", 0)),
+                "confidence_tier": pred_result.get("Confidence Tier", "RED"),
+                "needs_review": pred_result.get("Confidence Tier") not in ["GREEN"],
+                "category_changed": True  # Always true for uncategorized transactions
+            }
+            predictions.append(transformed)
+
+        # Calculate tier distributions from transformed predictions
         green = sum(1 for p in predictions if p.get("confidence_tier") == "GREEN")
         yellow = sum(1 for p in predictions if p.get("confidence_tier") == "YELLOW")
         red = sum(1 for p in predictions if p.get("confidence_tier") == "RED")
 
-        avg_conf = sum(p.get("confidence", 0) for p in predictions) / len(predictions) * 100 if predictions else 0
+        avg_conf = sum(p.get("confidence", 0) for p in predictions) * 100 / len(predictions) if predictions else 0
+
+        needs_review_count = yellow + red
+        categories_changed = sum(1 for p in predictions if p.get("category_changed", False))
 
         return {
-            "success": True,
+            "predictions": predictions,
             "total_predictions": len(predictions),
+            "high_confidence": green,
+            "needs_review": needs_review_count,
+            "categories_changed": categories_changed,
+            "confidence_threshold": request.confidence_threshold,
             "green_tier": green,
             "yellow_tier": yellow,
             "red_tier": red,
             "average_confidence": round(avg_conf, 1),
-            "predictions": predictions
+            "message": f"Successfully predicted {len(predictions)} Xero transactions"
         }
 
     except HTTPException:

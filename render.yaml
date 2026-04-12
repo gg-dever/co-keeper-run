@@ -1,0 +1,54 @@
+# Render.com Blueprint for CoKeeper
+# This file tells Render how to deploy your application
+# Just connect your GitHub repo and Render will auto-deploy!
+
+services:
+  # Backend Service (FastAPI)
+  - type: web
+    name: cokeeper-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free  # Change to 'starter' for $7/month (no sleep)
+    envVars:
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: 8000
+      - key: API_DEBUG
+        value: false
+      - key: FRONTEND_URL
+        sync: false  # Will set manually after frontend deploys
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: LOG_LEVEL
+        value: INFO
+      # QuickBooks OAuth (SANDBOX - update these for production)
+      - key: QB_CLIENT_ID
+        sync: false  # Set manually in Render dashboard
+      - key: QB_CLIENT_SECRET
+        sync: false  # Set manually (secret!)
+      - key: QB_REDIRECT_URI
+        sync: false  # Set to: https://your-backend-url.onrender.com/api/quickbooks/callback
+      - key: QB_ENVIRONMENT
+        value: production
+      # Xero OAuth
+      - key: XERO_CLIENT_ID
+        sync: false  # Set manually in Render dashboard
+      - key: XERO_CLIENT_SECRET
+        sync: false  # Set manually (secret!)
+      - key: XERO_REDIRECT_URI
+        sync: false  # Set to: https://your-backend-url.onrender.com/api/xero/callback
+    healthCheckPath: /health
+
+  # Frontend Service (Streamlit)
+  - type: web
+    name: cokeeper-frontend
+    env: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free  # Change to 'starter' for $7/month (no sleep)
+    envVars:
+      - key: BACKEND_URL
+        sync: false  # Will set to backend URL after it deploys
+    healthCheckPath: /

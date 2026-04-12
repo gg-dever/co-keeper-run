@@ -1,0 +1,17 @@
+# Frontend .dockerignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+venv/
+*.log
+.git/
+.gitignore
+README.md
+*.md
+Dockerfile
+.DS_Store
+app_old.py

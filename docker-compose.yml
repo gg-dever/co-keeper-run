@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cokeeper-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8501}
+      - QB_CLIENT_ID=${QB_CLIENT_ID}
+      - QB_CLIENT_SECRET=${QB_CLIENT_SECRET}
+      - QB_REDIRECT_URI=${QB_REDIRECT_URI}
+      - QB_ENVIRONMENT=${QB_ENVIRONMENT:-production}
+      - XERO_CLIENT_ID=${XERO_CLIENT_ID}
+      - XERO_CLIENT_SECRET=${XERO_CLIENT_SECRET}
+      - XERO_REDIRECT_URI=${XERO_REDIRECT_URI}
+      - XERO_SCOPES=${XERO_SCOPES}
+    volumes:
+      - ./backend/models:/app/models
+      - ./backend/sessions:/app/sessions
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cokeeper-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cokeeper-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=${BACKEND_URL:-http://backend:8000}
+    volumes:
+      - ./frontend/static:/app/static:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cokeeper-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: cokeeper-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./frontend/static:/app/static:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - cokeeper-network
+
+networks:
+  cokeeper-network:
+    driver: bridge
+
+volumes:
+  models:
+  sessions:

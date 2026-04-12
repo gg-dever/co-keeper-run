@@ -622,28 +622,37 @@ class MLPipelineXero:
 
         logger.info(f"Xero model saved to {path}")
 
-    def load_model(self, path: str) -> None:
+    @classmethod
+    def load_model(cls, path: str) -> 'MLPipelineXero':
         """
-        Load trained model from disk
+        Load trained model from disk (class method for consistency with QB pipeline)
 
         Args:
             path: File path to load the model from
+
+        Returns:
+            Initialized MLPipelineXero instance with loaded model
         """
         with open(path, 'rb') as f:
             model_data = pickle.load(f)
 
-        self.model = model_data["model"]
+        # Create new instance
+        pipeline = cls()
+
+        # Load all components
+        pipeline.model = model_data["model"]
         # Load triple TF-IDF vectorizers (backward compatible with old models)
-        self.tfidf_word = model_data.get("tfidf_word", model_data.get("tfidf_vectorizer"))
-        self.tfidf_char = model_data.get("tfidf_char")
-        self.tfidf_trigram = model_data.get("tfidf_trigram")
-        self.vendor_intelligence = model_data["vendor_intelligence"]
-        self.feature_selector = model_data.get("feature_selector")
-        self.confidence_calibrator = model_data.get("confidence_calibrator", ConfidenceCalibrator())
-        self.categories = model_data.get("categories")
-        self.account_name_to_code = model_data.get("account_name_to_code", {})
+        pipeline.tfidf_word = model_data.get("tfidf_word", model_data.get("tfidf_vectorizer"))
+        pipeline.tfidf_char = model_data.get("tfidf_char")
+        pipeline.tfidf_trigram = model_data.get("tfidf_trigram")
+        pipeline.vendor_intelligence = model_data["vendor_intelligence"]
+        pipeline.feature_selector = model_data.get("feature_selector")
+        pipeline.confidence_calibrator = model_data.get("confidence_calibrator", ConfidenceCalibrator())
+        pipeline.categories = model_data.get("categories")
+        pipeline.account_name_to_code = model_data.get("account_name_to_code", {})
 
         logger.info(f"Xero model loaded from {path}")
+        return pipeline
 
     @staticmethod
     def _get_tier(confidence: float) -> str:

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoKeeper - Privacy Policy</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2563eb;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #1e40af;
+            margin-top: 30px;
+        }
+        .last-updated {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 30px;
+        }
+        .highlight {
+            background-color: #dbeafe;
+            padding: 15px;
+            border-left: 4px solid #2563eb;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy</h1>
+    <p class="last-updated">Last Updated: April 12, 2026</p>
+
+    <div class="highlight">
+        <strong>Quick Summary:</strong> We access only the transaction data you authorize. We use it to train AI models for YOUR use only. We don't share your data with third parties. You can revoke access anytime.
+    </div>
+
+    <h2>1. Introduction</h2>
+    <p>CoKeeper ("we," "our," or "us") respects your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use our transaction categorization service.</p>
+
+    <h2>2. Information We Collect</h2>
+
+    <h3>2.1 Information You Provide Directly</h3>
+    <ul>
+        <li><strong>CSV Files:</strong> Transaction data you upload for categorization</li>
+        <li><strong>OAuth Authorization:</strong> Permission to access your QuickBooks or Xero data</li>
+    </ul>
+
+    <h3>2.2 Information We Collect via OAuth</h3>
+    <p>When you connect your QuickBooks or Xero account, we access:</p>
+
+    <table>
+        <tr>
+            <th>Data Type</th>
+            <th>What We Access</th>
+            <th>How We Use It</th>
+        </tr>
+        <tr>
+            <td>Transactions</td>
+            <td>Date, vendor, amount, description, category</td>
+            <td>Train ML models and generate predictions</td>
+        </tr>
+        <tr>
+            <td>Chart of Accounts</td>
+            <td>Account names and codes</td>
+            <td>Map predictions to your categories</td>
+        </tr>
+        <tr>
+            <td>Company Info</td>
+            <td>Company name (QuickBooks realm ID)</td>
+            <td>Session identification</td>
+        </tr>
+    </table>
+
+    <h3>2.3 Information We Do NOT Collect</h3>
+    <ul>
+        <li>❌ Your QuickBooks or Xero passwords</li>
+        <li>❌ Customer or vendor contact details</li>
+        <li>❌ Bank account numbers or financial credentials</li>
+        <li>❌ Personal identification documents</li>
+    </ul>
+
+    <h2>3. How We Use Your Information</h2>
+
+    <h3>3.1 Primary Uses</h3>
+    <ul>
+        <li><strong>ML Model Training:</strong> Your historical transaction data trains custom models specific to YOUR business</li>
+        <li><strong>Predictions:</strong> Trained models categorize new transactions</li>
+        <li><strong>Session Management:</strong> OAuth tokens enable API access during your session</li>
+    </ul>
+
+    <h3>3.2 We Do NOT Use Your Data For</h3>
+    <ul>
+        <li>❌ Training models for other users</li>
+        <li>❌ Marketing or advertising</li>
+        <li>❌ Selling to third parties</li>
+        <li>❌ Credit scoring or financial analysis</li>
+    </ul>
+
+    <h2>4. Data Storage and Retention</h2>
+
+    <h3>4.1 What We Store</h3>
+    <table>
+        <tr>
+            <th>Data Type</th>
+            <th>Storage Duration</th>
+            <th>Location</th>
+        </tr>
+        <tr>
+            <td>OAuth Tokens</td>
+            <td>Session duration (until revoked)</td>
+            <td>Server file system</td>
+        </tr>
+        <tr>
+            <td>Trained ML Models</td>
+            <td>Until you disconnect/delete</td>
+            <td>Server file system</td>
+        </tr>
+        <tr>
+            <td>CSV Files</td>
+            <td>Not stored (processed in memory)</td>
+            <td>N/A</td>
+        </tr>
+        <tr>
+            <td>Transaction Data</td>
+            <td>Not stored (processed in memory)</td>
+            <td>N/A</td>
+        </tr>
+    </table>
+
+    <h3>4.2 Data Deletion</h3>
+    <p>Your data is automatically deleted when you:</p>
+    <ul>
+        <li>Revoke OAuth access from QuickBooks/Xero settings</li>
+        <li>Close your browser session</li>
+        <li>Request deletion (contact us)</li>
+    </ul>
+
+    <h2>5. Data Security</h2>
+
+    <h3>5.1 Security Measures</h3>
+    <ul>
+        <li><strong>HTTPS/TLS:</strong> All data transmitted via encrypted connections</li>
+        <li><strong>OAuth 2.0:</strong> Industry-standard authentication (no passwords stored)</li>
+        <li><strong>Token Encryption:</strong> OAuth tokens stored securely</li>
+        <li><strong>Server Security:</strong> Regular security updates and monitoring</li>
+    </ul>
+
+    <h3>5.2 Your Responsibilities</h3>
+    <ul>
+        <li>Keep your QuickBooks/Xero credentials secure</li>
+        <li>Review OAuth permissions before authorizing</li>
+        <li>Revoke access when no longer needed</li>
+        <li>Use strong passwords for your accounting platforms</li>
+    </ul>
+
+    <h2>6. Third-Party Services</h2>
+
+    <h3>6.1 QuickBooks (Intuit)</h3>
+    <p>When you connect QuickBooks, your data is also governed by:</p>
+    <ul>
+        <li>Intuit Privacy Policy: <a href="https://www.intuit.com/privacy/">https://www.intuit.com/privacy/</a></li>
+        <li>QuickBooks Terms: <a href="https://quickbooks.intuit.com/legal/">https://quickbooks.intuit.com/legal/</a></li>
+    </ul>
+
+    <h3>6.2 Xero</h3>
+    <p>When you connect Xero, your data is also governed by:</p>
+    <ul>
+        <li>Xero Privacy Policy: <a href="https://www.xero.com/us/legal/privacy/">https://www.xero.com/us/legal/privacy/</a></li>
+        <li>Xero Terms: <a href="https://www.xero.com/us/legal/terms/">https://www.xero.com/us/legal/terms/</a></li>
+    </ul>
+
+    <h2>7. Your Rights</h2>
+
+    <p>You have the right to:</p>
+    <ul>
+        <li><strong>Access:</strong> Request a copy of your data we process</li>
+        <li><strong>Deletion:</strong> Request deletion of your data</li>
+        <li><strong>Revoke:</strong> Disconnect OAuth access at any time</li>
+        <li><strong>Export:</strong> Download your prediction results</li>
+        <li><strong>Opt-Out:</strong> Stop using the service at any time</li>
+    </ul>
+
+    <h2>8. Children's Privacy</h2>
+    <p>CoKeeper is not intended for users under 18 years of age. We do not knowingly collect information from children.</p>
+
+    <h2>9. International Users</h2>
+    <p>If you access CoKeeper from outside the United States, your data may be transferred to and processed in the United States. By using the Service, you consent to this transfer.</p>
+
+    <h2>10. Changes to This Privacy Policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify you of changes by:</p>
+    <ul>
+        <li>Updating the "Last Updated" date</li>
+        <li>Posting the new policy on this page</li>
+        <li>Notifying you via the application (for significant changes)</li>
+    </ul>
+
+    <h2>11. Data Breach Notification</h2>
+    <p>In the unlikely event of a data breach affecting your information, we will:</p>
+    <ul>
+        <li>Notify you within 72 hours</li>
+        <li>Describe what data was affected</li>
+        <li>Explain steps we're taking to address the breach</li>
+        <li>Notify relevant authorities as required by law</li>
+    </ul>
+
+    <h2>12. Contact Us</h2>
+    <p>For questions about this Privacy Policy or to exercise your rights, contact:</p>
+    <p>
+        <strong>Email:</strong> privacy@yourdomain.com<br>
+        <strong>Website:</strong> https://yourdomain.com<br>
+        <strong>Response Time:</strong> Within 48 hours
+    </p>
+
+    <h2>13. Legal Basis for Processing (GDPR)</h2>
+    <p>If you are in the European Union, our legal basis for processing your data is:</p>
+    <ul>
+        <li><strong>Consent:</strong> You explicitly authorize OAuth access</li>
+        <li><strong>Legitimate Interest:</strong> Providing the categorization service you requested</li>
+    </ul>
+
+    <hr style="margin: 40px 0;">
+
+    <p style="text-align: center; color: #666; font-size: 14px;">
+        Questions? Contact us at privacy@yourdomain.com
+    </p>
+</body>
+</html>
