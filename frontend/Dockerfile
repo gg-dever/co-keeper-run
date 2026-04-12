@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install requirements
-COPY requirements.txt .
+COPY frontend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all code
-COPY . .
+COPY frontend/ .
 
 # Configure Streamlit
 RUN mkdir -p /root/.streamlit && \
