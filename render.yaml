@@ -7,7 +7,7 @@ services:
   - type: web
     name: cokeeper-backend
     env: docker
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: ./backend
     plan: free  # Change to 'starter' for $7/month (no sleep)
     envVars:
@@ -45,7 +45,7 @@ services:
   - type: web
     name: cokeeper-frontend
     env: docker
-    dockerfilePath: ./frontend/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: ./frontend
     plan: free  # Change to 'starter' for $7/month (no sleep)
     envVars:
